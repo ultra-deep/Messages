@@ -92,7 +92,10 @@
     <string name="keyword">Keyword</string>
     <string name="blocked_keywords">Blocked keywords</string>
     <string name="manage_blocked_keywords">Manage blocked keywords</string>
-    <string name="not_blocking_keywords">You are not blocking any keywords. You may add keywords here to block all messages containing them.</string>
+    <string name="not_blocking_keywords">You are not blocking any keywords. You may add keywords here to block messages that contain them. Use * for any text and ? for one character, like an MS-DOS file name.</string>
+    <string name="blocked_keyword_pattern_hint">Use * for any text and ? for one character, the same way as an MS-DOS file name. The pattern matches the whole message. For example, http://* blocks messages that start with http://, *http://* blocks messages that contain http://, and *m1*m2??*m3 blocks messages that contain m1, then m2 followed by two characters, and end with m3. A keyword without * or ? still blocks every message that contains it.</string>
+    <!-- Overrides the commons blocked-number dialog hint. -->
+    <string name="add_blocked_number_helper_text">Enter a number or a pattern. * matches any text and ? matches one character, like an MS-DOS file name. The pattern matches the whole number. For example, +985000* blocks numbers that start with +985000, and *3000* blocks numbers that contain 3000. A number without * or ? still blocks that number.</string>
     <string name="add_a_blocked_keyword">Add a blocked keyword</string>
     <string name="lock_screen_visibility">Lock screen notification visibility</string>
     <string name="sender_and_message">Sender and message</string>

@@ -25,7 +25,6 @@ import org.fossify.messages.extensions.shortcutHelper
 import org.fossify.messages.messaging.isShortCodeWithLetters
 import org.fossify.messages.receivers.DeleteSmsReceiver
 import org.fossify.messages.receivers.DirectReplyReceiver
-import org.fossify.messages.receivers.MarkAsReadReceiver
 
 class NotificationHelper(private val context: Context) {
 
@@ -66,22 +65,13 @@ class NotificationHelper(private val context: Context) {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
 
-        val markAsReadIntent = Intent(context, MarkAsReadReceiver::class.java).apply {
-            action = MARK_AS_READ
-            putExtra(THREAD_ID, threadId)
-        }
-        val markAsReadPendingIntent =
-            PendingIntent.getBroadcast(
-                context,
-                notificationId,
-                markAsReadIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
+        val (messageIds, messageIsMms) = notifiedMessages(notificationId, messageId, isMms, sender)
         val deleteSmsIntent = Intent(context, DeleteSmsReceiver::class.java).apply {
             putExtra(THREAD_ID, threadId)
             putExtra(MESSAGE_ID, messageId)
             putExtra(IS_MMS, isMms)
+            putExtra(MESSAGE_IDS, messageIds)
+            putExtra(MESSAGE_IS_MMS, messageIsMms)
         }
         val deleteSmsPendingIntent =
             PendingIntent.getBroadcast(
@@ -158,18 +148,12 @@ class NotificationHelper(private val context: Context) {
         }
 
         builder.addAction(
-            org.fossify.commons.R.drawable.ic_check_vector,
-            context.getString(R.string.mark_as_read),
-            markAsReadPendingIntent
-        )
-            .setChannelId(notificationChannelId)
-        if (isNoReplySms) {
-            builder.addAction(
-                org.fossify.commons.R.drawable.ic_delete_vector,
-                context.getString(org.fossify.commons.R.string.delete),
-                deleteSmsPendingIntent
-            ).setChannelId(notificationChannelId)
-        }
+            org.fossify.commons.R.drawable.ic_delete_vector,
+            context.getString(org.fossify.commons.R.string.delete),
+            deleteSmsPendingIntent
+        ).setChannelId(notificationChannelId)
+        builder.extras.putLongArray(MESSAGE_IDS, messageIds)
+        builder.extras.putBooleanArray(MESSAGE_IS_MMS, messageIsMms)
 
         var shortcut = context.shortcutHelper.getShortcut(threadId)
         if (shortcut == null) {
@@ -269,6 +253,30 @@ class NotificationHelper(private val context: Context) {
                 NotificationCompat.MessagingStyle.Message(body, System.currentTimeMillis(), sender)
             style.addMessage(newMessage)
         }
+    }
+
+    private fun notifiedMessages(
+        notificationId: Int,
+        messageId: Long,
+        isMms: Boolean,
+        sender: String?,
+    ): Pair<LongArray, BooleanArray> {
+        val currentNotification = notificationManager.activeNotifications
+            .find { it.id == notificationId }
+            ?.notification
+        val existingIds = currentNotification?.extras?.getLongArray(MESSAGE_IDS) ?: longArrayOf()
+        val existingFlags = currentNotification?.extras?.getBooleanArray(MESSAGE_IS_MMS) ?: booleanArrayOf()
+        val ids = existingIds.toMutableList()
+        val flags = existingFlags.toMutableList()
+        if (existingIds.size != existingFlags.size) {
+            ids.clear()
+            flags.clear()
+        }
+        if (sender != null && messageId > 0L && ids.indices.none { ids[it] == messageId && flags[it] == isMms }) {
+            ids.add(messageId)
+            flags.add(isMms)
+        }
+        return ids.toLongArray() to flags.toBooleanArray()
     }
 
     private fun getOldMessages(notificationId: Int): List<NotificationCompat.MessagingStyle.Message> {

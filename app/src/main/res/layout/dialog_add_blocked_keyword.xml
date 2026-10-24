@@ -1,25 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/dialog_holder"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:paddingTop="@dimen/activity_margin">
+    android:layout_height="wrap_content">
 
-    <org.fossify.commons.views.MyTextInputLayout
-        android:id="@+id/add_blocked_keyword_hint"
+    <LinearLayout
+        android:id="@+id/add_blocked_keyword_holder"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/activity_margin"
-        android:layout_marginEnd="@dimen/activity_margin"
-        android:hint="@string/keyword">
+        android:orientation="vertical"
+        android:paddingTop="@dimen/activity_margin">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/add_blocked_keyword_edittext"
+        <org.fossify.commons.views.MyTextInputLayout
+            android:id="@+id/add_blocked_keyword_hint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="text"
-            android:textCursorDrawable="@null"
-            android:textSize="@dimen/bigger_text_size" />
+            android:layout_marginStart="@dimen/activity_margin"
+            android:layout_marginEnd="@dimen/activity_margin"
+            android:hint="@string/keyword">
 
-    </org.fossify.commons.views.MyTextInputLayout>
-</RelativeLayout>
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/add_blocked_keyword_edittext"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:textCursorDrawable="@null"
+                android:textSize="@dimen/bigger_text_size" />
+
+        </org.fossify.commons.views.MyTextInputLayout>
+
+        <org.fossify.commons.views.MyTextView
+            android:id="@+id/add_blocked_keyword_pattern_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/activity_margin"
+            android:layout_marginTop="@dimen/medium_margin"
+            android:layout_marginEnd="@dimen/activity_margin"
+            android:paddingBottom="@dimen/activity_margin"
+            android:text="@string/blocked_keyword_pattern_hint"
+            android:textSize="@dimen/smaller_text_size" />
+
+    </LinearLayout>
+</ScrollView>
