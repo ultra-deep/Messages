@@ -4,9 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
-import org.fossify.commons.extensions.baseConfig
 import org.fossify.commons.extensions.getMyContactsCursor
-import org.fossify.commons.helpers.ContactLookupResult
 import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.models.PhoneNumber
@@ -18,11 +16,13 @@ import org.fossify.messages.extensions.getThreadId
 import org.fossify.messages.extensions.insertNewSMS
 import org.fossify.messages.extensions.insertOrUpdateConversation
 import org.fossify.messages.extensions.messagesDB
+import org.fossify.messages.extensions.saveBlockedMessage
 import org.fossify.messages.extensions.shouldUnarchive
 import org.fossify.messages.extensions.showReceivedMessageNotification
 import org.fossify.messages.extensions.updateConversationArchivedStatus
-import org.fossify.messages.helpers.ReceiverUtils.isMessageFilteredOut
+import org.fossify.messages.helpers.ReceiverUtils.isIncomingMessageBlocked
 import org.fossify.messages.helpers.isBlockedSender
+import org.fossify.messages.helpers.refreshBlockedMessages
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.helpers.refreshMessages
 import org.fossify.messages.models.Message
@@ -44,19 +44,20 @@ class SmsReceiver : BroadcastReceiver() {
                 val subject = parts.last().pseudoSubject.orEmpty()
                 val status = parts.last().status
                 val body = buildString { parts.forEach { append(it.messageBody.orEmpty()) } }
-
-                if (isMessageFilteredOut(appContext, body)) return@ensureBackgroundThread
-                if (appContext.isBlockedSender(address)) return@ensureBackgroundThread
-                if (appContext.baseConfig.blockUnknownNumbers) {
-                    val privateCursor =
-                        appContext.getMyContactsCursor(favoritesOnly = false, withPhoneNumbersOnly = true)
-                    val result = SimpleContactsHelper(appContext).existsSync(address, privateCursor)
-                    if (result == ContactLookupResult.NotFound) return@ensureBackgroundThread
+                val subscriptionId = intent.getIntExtra("subscription", -1)
+                if (isIncomingMessageBlocked(appContext, address, body)) {
+                    keepBlockedSms(
+                        context = appContext,
+                        address = address,
+                        subject = subject,
+                        body = body,
+                        subscriptionId = subscriptionId,
+                    )
+                    return@ensureBackgroundThread
                 }
 
                 val date = System.currentTimeMillis()
                 val threadId = appContext.getThreadId(address)
-                val subscriptionId = intent.getIntExtra("subscription", -1)
 
                 handleMessageSync(
                     context = appContext,
@@ -71,6 +72,36 @@ class SmsReceiver : BroadcastReceiver() {
             } finally {
                 pending.finish()
             }
+        }
+    }
+
+    private fun keepBlockedSms(
+        context: Context,
+        address: String,
+        subject: String,
+        body: String,
+        subscriptionId: Int,
+    ) {
+        if (context.isBlockedSender(address)) {
+            val threadId = context.getThreadId(address)
+            context.insertNewSMS(
+                address = address,
+                subject = subject,
+                body = body,
+                date = System.currentTimeMillis(),
+                read = 0,
+                threadId = threadId,
+                type = Telephony.Sms.MESSAGE_TYPE_INBOX,
+                subscriptionId = subscriptionId,
+            )
+            refreshBlockedMessages()
+        } else {
+            context.saveBlockedMessage(
+                address = address,
+                body = body,
+                dateMillis = System.currentTimeMillis(),
+                subscriptionId = subscriptionId,
+            )
         }
     }
 

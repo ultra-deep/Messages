@@ -22,6 +22,16 @@
         android:title="@string/unarchive"
         app:showAsAction="always" />
     <item
+        android:id="@+id/move_to_group"
+        android:showAsAction="never"
+        android:title="@string/move_to_group"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/remove_from_group"
+        android:showAsAction="never"
+        android:title="@string/remove_from_group"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/manage_people"
         android:showAsAction="never"
         android:title="@string/add_person"

@@ -46,6 +46,10 @@ const val MESSAGE_IS_MMS = "message_is_mms"
 const val USE_RECYCLE_BIN = "use_recycle_bin"
 const val LAST_RECYCLE_BIN_CHECK = "last_recycle_bin_check"
 const val IS_RECYCLE_BIN = "is_recycle_bin"
+const val IS_BLOCKED_CONVERSATION = "is_blocked_conversation"
+const val SHOW_BLOCKED_TAB = "show_blocked_tab"
+const val SHOW_BLOCKED_MESSAGES_TAB = "show_blocked_messages_tab"
+const val SHOW_ARCHIVED_MESSAGES_TAB = "show_archived_messages_tab"
 const val IS_ARCHIVE_AVAILABLE = "is_archive_available"
 const val CUSTOM_NOTIFICATIONS = "custom_notifications"
 const val IS_LAUNCHED_FROM_SHORTCUT = "is_launched_from_shortcut"
@@ -109,6 +113,10 @@ fun refreshMessages() {
 
 fun refreshConversations() {
     EventBus.getDefault().post(Events.RefreshConversations())
+}
+
+fun refreshBlockedMessages() {
+    EventBus.getDefault().post(Events.RefreshBlockedMessages())
 }
 
 /** Not to be used with real messages persisted in the telephony db. This is for internal use only (e.g. scheduled messages, notification ids etc). */

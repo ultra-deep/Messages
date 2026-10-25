@@ -8,6 +8,7 @@ import org.fossify.commons.views.MyRecyclerView
 import org.fossify.messages.R
 import org.fossify.messages.activities.SimpleActivity
 import org.fossify.messages.extensions.deleteConversation
+import org.fossify.messages.extensions.promptMoveConversationsToGroup
 import org.fossify.messages.extensions.updateConversationArchivedStatus
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.models.Conversation
@@ -27,6 +28,7 @@ class ArchivedConversationsAdapter(
         when (id) {
             R.id.cab_delete -> askConfirmDelete()
             R.id.cab_unarchive -> unarchiveConversation()
+            R.id.cab_move_to_group -> moveToGroup()
             R.id.cab_select_all -> selectAll()
         }
     }
@@ -57,6 +59,13 @@ class ArchivedConversationsAdapter(
         }
 
         removeConversationsFromList(conversationsToRemove)
+    }
+
+    private fun moveToGroup() {
+        val threadIds = getSelectedItems().map { it.threadId }
+        activity.promptMoveConversationsToGroup(threadIds) {
+            finishActMode()
+        }
     }
 
     private fun unarchiveConversation() {

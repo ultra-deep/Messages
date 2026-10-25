@@ -149,7 +149,7 @@ class NotificationHelper(private val context: Context) {
 
         builder.addAction(
             org.fossify.commons.R.drawable.ic_delete_vector,
-            context.getString(org.fossify.commons.R.string.delete),
+            context.getString(R.string.trash),
             deleteSmsPendingIntent
         ).setChannelId(notificationChannelId)
         builder.extras.putLongArray(MESSAGE_IDS, messageIds)

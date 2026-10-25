@@ -61,6 +61,8 @@ import org.fossify.messages.helpers.ShortcutHelper
 import org.fossify.messages.helpers.generateRandomId
 import org.fossify.messages.helpers.isBlockedSender
 import org.fossify.messages.interfaces.AttachmentsDao
+import org.fossify.messages.interfaces.BlockedMessagesDao
+import org.fossify.messages.interfaces.ConversationGroupsDao
 import org.fossify.messages.interfaces.ConversationsDao
 import org.fossify.messages.interfaces.DraftsDao
 import org.fossify.messages.interfaces.MessageAttachmentsDao
@@ -99,6 +101,12 @@ val Context.messagesDB: MessagesDao
 
 val Context.draftsDB: DraftsDao
     get() = getMessagesDB().DraftsDao()
+
+val Context.blockedMessagesDB: BlockedMessagesDao
+    get() = getMessagesDB().BlockedMessagesDao()
+
+val Context.conversationGroupsDB: ConversationGroupsDao
+    get() = getMessagesDB().ConversationGroupsDao()
 
 val Context.notificationHelper
     get() = NotificationHelper(this)
@@ -1258,11 +1266,15 @@ fun Context.insertOrUpdateConversation(
     cachedConv: Conversation? = conversationsDB.getConversationWithThreadId(conversation.threadId),
 ) {
     var updatedConv = conversation
-    if (cachedConv != null && cachedConv.usesCustomTitle) {
-        updatedConv = updatedConv.copy(
-            title = cachedConv.title,
-            usesCustomTitle = true
-        )
+    if (cachedConv != null) {
+        // Telephony rebuilds the row without the group the user assigned.
+        updatedConv = updatedConv.copy(groupId = cachedConv.groupId)
+        if (cachedConv.usesCustomTitle) {
+            updatedConv = updatedConv.copy(
+                title = cachedConv.title,
+                usesCustomTitle = true
+            )
+        }
     }
     conversationsDB.insertOrUpdate(updatedConv)
 }

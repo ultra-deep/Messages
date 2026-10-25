@@ -20,6 +20,7 @@ import org.fossify.messages.extensions.dialNumber
 import org.fossify.messages.extensions.launchConversationDetails
 import org.fossify.messages.extensions.markThreadMessagesRead
 import org.fossify.messages.extensions.markThreadMessagesUnread
+import org.fossify.messages.extensions.promptMoveConversationsToGroup
 import org.fossify.messages.extensions.renameConversation
 import org.fossify.messages.extensions.updateConversationArchivedStatus
 import org.fossify.messages.helpers.refreshConversations
@@ -73,6 +74,7 @@ class ConversationsAdapter(
             R.id.cab_copy_number -> copyNumberToClipboard()
             R.id.cab_delete -> askConfirmDelete()
             R.id.cab_archive -> askConfirmArchive()
+            R.id.cab_move_to_group -> moveToGroup()
             R.id.cab_rename_conversation -> renameConversation(selectedItems.first())
             R.id.cab_conversation_details ->
                 activity.launchConversationDetails(selectedItems.first().threadId)
@@ -142,6 +144,13 @@ class ConversationsAdapter(
             ensureBackgroundThread {
                 deleteConversations()
             }
+        }
+    }
+
+    private fun moveToGroup() {
+        val threadIds = getSelectedItems().map { it.threadId }
+        activity.promptMoveConversationsToGroup(threadIds) {
+            finishActMode()
         }
     }
 

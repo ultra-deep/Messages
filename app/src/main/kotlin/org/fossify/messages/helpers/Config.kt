@@ -151,4 +151,14 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean(KEEP_CONVERSATIONS_ARCHIVED, false)
         set(keepConversationsArchived) = prefs.edit()
             .putBoolean(KEEP_CONVERSATIONS_ARCHIVED, keepConversationsArchived).apply()
+
+    var showBlockedMessagesTab: Boolean
+        get() = prefs.getBoolean(SHOW_BLOCKED_MESSAGES_TAB, true)
+        set(showBlockedMessagesTab) = prefs.edit()
+            .putBoolean(SHOW_BLOCKED_MESSAGES_TAB, showBlockedMessagesTab).apply()
+
+    var showArchivedMessagesTab: Boolean
+        get() = prefs.getBoolean(SHOW_ARCHIVED_MESSAGES_TAB, true)
+        set(showArchivedMessagesTab) = prefs.edit()
+            .putBoolean(SHOW_ARCHIVED_MESSAGES_TAB, showArchivedMessagesTab).apply()
 }

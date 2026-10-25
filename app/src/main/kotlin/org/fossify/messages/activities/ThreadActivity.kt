@@ -127,7 +127,11 @@ import org.fossify.messages.extensions.filterNotInByKey
 import org.fossify.messages.extensions.getAddresses
 import org.fossify.messages.extensions.getDefaultKeyboardHeight
 import org.fossify.messages.extensions.getFileSizeFromUri
+import org.fossify.messages.extensions.deleteBlockedMessages
+import org.fossify.messages.extensions.getBlockedConversationMessages
 import org.fossify.messages.extensions.getMessages
+import org.fossify.messages.extensions.promptMoveConversationsToGroup
+import org.fossify.messages.extensions.removeConversationsFromGroup
 import org.fossify.messages.extensions.getSmsDraft
 import org.fossify.messages.extensions.getThreadId
 import org.fossify.messages.extensions.getThreadParticipants
@@ -137,7 +141,10 @@ import org.fossify.messages.extensions.isGifMimeType
 import org.fossify.messages.extensions.isImageMimeType
 import org.fossify.messages.extensions.launchConversationDetails
 import org.fossify.messages.extensions.markMessageRead
+import org.fossify.messages.extensions.markBlockedConversationRead
+import org.fossify.messages.extensions.markBlockedConversationUnread
 import org.fossify.messages.extensions.markThreadMessagesRead
+import org.fossify.messages.extensions.toBlockedMessageEntry
 import org.fossify.messages.extensions.markThreadMessagesUnread
 import org.fossify.messages.extensions.messagesDB
 import org.fossify.messages.extensions.moveMessageToRecycleBin
@@ -161,6 +168,7 @@ import org.fossify.messages.helpers.CAPTURE_PHOTO_INTENT
 import org.fossify.messages.helpers.CAPTURE_VIDEO_INTENT
 import org.fossify.messages.helpers.FILE_SIZE_NONE
 import org.fossify.messages.helpers.IS_LAUNCHED_FROM_SHORTCUT
+import org.fossify.messages.helpers.IS_BLOCKED_CONVERSATION
 import org.fossify.messages.helpers.IS_RECYCLE_BIN
 import org.fossify.messages.helpers.MESSAGES_LIMIT
 import org.fossify.messages.helpers.PICK_CONTACT_INTENT
@@ -220,6 +228,7 @@ class ThreadActivity : SimpleActivity() {
     private var allMessagesFetched = false
     private var isJumpingToMessage = false
     private var isRecycleBin = false
+    private var isBlockedConversation = false
     private var isLaunchedFromShortcut = false
 
     private var isScheduledMessage: Boolean = false
@@ -264,6 +273,7 @@ class ThreadActivity : SimpleActivity() {
             binding.threadToolbar.title = it
         }
         isRecycleBin = intent.getBooleanExtra(IS_RECYCLE_BIN, false)
+        isBlockedConversation = intent.getBooleanExtra(IS_BLOCKED_CONVERSATION, false)
         isLaunchedFromShortcut = intent.getBooleanExtra(IS_LAUNCHED_FROM_SHORTCUT, false)
 
         bus = EventBus.getDefault()
@@ -288,6 +298,11 @@ class ThreadActivity : SimpleActivity() {
         notificationManager.cancel(threadId.hashCode())
 
         ensureBackgroundThread {
+            if (isBlockedConversation) {
+                markBlockedConversationRead(blockedConversationAddress())
+                return@ensureBackgroundThread
+            }
+
             val newConv = conversationsDB.getConversationWithThreadId(threadId)
             if (newConv != null) {
                 conversation = newConv
@@ -341,6 +356,9 @@ class ThreadActivity : SimpleActivity() {
     }
 
     private fun saveDraftMessage() {
+        if (isBlockedConversation) {
+            return
+        }
         val draftMessage = binding.messageHolder.threadTypeMessage.value
         ensureBackgroundThread {
             if (draftMessage.isNotEmpty() && getAttachmentSelections().isEmpty()) {
@@ -358,18 +376,23 @@ class ThreadActivity : SimpleActivity() {
             findItem(R.id.delete).isVisible = threadItems.isNotEmpty()
             findItem(R.id.restore).isVisible = threadItems.isNotEmpty() && isRecycleBin
             findItem(R.id.archive).isVisible =
-                threadItems.isNotEmpty() && conversation?.isArchived == false && !isRecycleBin && archiveAvailable
+                threadItems.isNotEmpty() && conversation?.isArchived == false && !isRecycleBin && !isBlockedConversation && archiveAvailable
             findItem(R.id.unarchive).isVisible =
-                threadItems.isNotEmpty() && conversation?.isArchived == true && !isRecycleBin && archiveAvailable
+                threadItems.isNotEmpty() && conversation?.isArchived == true && !isRecycleBin && !isBlockedConversation && archiveAvailable
+            findItem(R.id.move_to_group).isVisible =
+                threadItems.isNotEmpty() && !isRecycleBin && !isBlockedConversation
+            findItem(R.id.remove_from_group).isVisible =
+                threadItems.isNotEmpty() && !isRecycleBin && !isBlockedConversation &&
+                    (conversation?.groupId ?: 0L) != 0L
             findItem(R.id.rename_conversation).isVisible =
-                participants.size > 1 && conversation != null && !isRecycleBin
-            findItem(R.id.conversation_details).isVisible = conversation != null && !isRecycleBin
+                participants.size > 1 && conversation != null && !isRecycleBin && !isBlockedConversation
+            findItem(R.id.conversation_details).isVisible = conversation != null && !isRecycleBin && !isBlockedConversation
             findItem(R.id.block_number).title =
                 getString(org.fossify.commons.R.string.block_number)
             findItem(R.id.block_number).isVisible = !isRecycleBin
             findItem(R.id.dial_number).isVisible =
                 participants.size == 1 && !isSpecialNumber() && !isRecycleBin
-            findItem(R.id.manage_people).isVisible = !isSpecialNumber() && !isRecycleBin
+            findItem(R.id.manage_people).isVisible = !isSpecialNumber() && !isRecycleBin && !isBlockedConversation
             findItem(R.id.mark_as_unread).isVisible = threadItems.isNotEmpty() && !isRecycleBin
 
             // allow saving number in cases when we don't have it stored yet
@@ -394,6 +417,8 @@ class ThreadActivity : SimpleActivity() {
             R.id.restore -> askConfirmRestoreAll()
             R.id.archive -> archiveConversation()
             R.id.unarchive -> unarchiveConversation()
+            R.id.move_to_group -> moveConversationToGroup()
+            R.id.remove_from_group -> removeConversationFromGroup()
             R.id.rename_conversation -> renameConversation()
             R.id.conversation_details -> launchConversationDetails(threadId)
             R.id.add_number_to_contact -> addNumberToContact()
@@ -431,6 +456,10 @@ class ThreadActivity : SimpleActivity() {
     }
 
     private fun setupCachedMessages(callback: () -> Unit) {
+        if (isBlockedConversation) {
+            callback()
+            return
+        }
         ensureBackgroundThread {
             messages = try {
                 if (isRecycleBin) {
@@ -482,7 +511,9 @@ class ThreadActivity : SimpleActivity() {
             privateContacts = MyContactsContentProvider.getSimpleContacts(this, privateCursor)
 
             val cachedMessagesCode = messages.hashCode()
-            if (!isRecycleBin) {
+            if (isBlockedConversation) {
+                messages = getBlockedConversationMessages(blockedConversationAddress())
+            } else if (!isRecycleBin) {
                 messages = getMessages(threadId)
                 val recycledMessages = messagesDB.getThreadMessagesFromRecycleBin(threadId)
                 messages = messages.filterNotInByKey(recycledMessages) { it.getStableId() }
@@ -549,7 +580,7 @@ class ThreadActivity : SimpleActivity() {
                 }
             }
 
-            if (!isRecycleBin) {
+            if (!isRecycleBin && !isBlockedConversation) {
                 messages.chunked(30).forEach { currentMessages ->
                     messagesDB.insertMessages(*currentMessages.toTypedArray())
                 }
@@ -718,25 +749,29 @@ class ThreadActivity : SimpleActivity() {
             }
         }
 
-        messagesToRemove.forEach { message ->
-            val messageId = message.id
-            if (message.isScheduled) {
-                deleteScheduledMessage(messageId)
-                cancelScheduleSendPendingIntent(messageId)
-            } else {
-                if (toRecycleBin) {
-                    moveMessageToRecycleBin(messageId)
-                } else if (fromRecycleBin) {
-                    restoreMessageFromRecycleBin(messageId)
+        if (isBlockedConversation) {
+            deleteBlockedMessages(messagesToRemove.map { it.toBlockedMessageEntry() })
+        } else {
+            messagesToRemove.forEach { message ->
+                val messageId = message.id
+                if (message.isScheduled) {
+                    deleteScheduledMessage(messageId)
+                    cancelScheduleSendPendingIntent(messageId)
                 } else {
-                    deleteMessage(messageId, message.isMMS)
+                    if (toRecycleBin) {
+                        moveMessageToRecycleBin(messageId)
+                    } else if (fromRecycleBin) {
+                        restoreMessageFromRecycleBin(messageId)
+                    } else {
+                        deleteMessage(messageId, message.isMMS)
+                    }
                 }
             }
+            updateLastConversationMessage(threadId)
         }
-        updateLastConversationMessage(threadId)
 
         // move all scheduled messages to a temporary thread when there are no real messages left
-        if (messages.isNotEmpty() && messages.all { it.isScheduled }) {
+        if (!isBlockedConversation && messages.isNotEmpty() && messages.all { it.isScheduled }) {
             val scheduledMessage = messages.last()
             val fakeThreadId = generateRandomId()
             createTemporaryThread(scheduledMessage, fakeThreadId, conversation)
@@ -792,6 +827,9 @@ class ThreadActivity : SimpleActivity() {
     }
 
     private fun loadMoreMessages() {
+        if (isBlockedConversation) {
+            return
+        }
         val messageSnapshot = messages.toSortedMessages()
         if (messageSnapshot.isEmpty() || allMessagesFetched || loadingOlderMessages) return
         loadingOlderMessages = true
@@ -843,8 +881,17 @@ class ThreadActivity : SimpleActivity() {
     }
 
     private fun setupConversation() {
+        if (isBlockedConversation) {
+            conversation = null
+            return
+        }
         ensureBackgroundThread {
             conversation = conversationsDB.getConversationWithThreadId(threadId)
+            runOnUiThread {
+                if (!isDestroyed && !isFinishing) {
+                    refreshMenuItems()
+                }
+            }
         }
     }
 
@@ -1168,6 +1215,19 @@ class ThreadActivity : SimpleActivity() {
     }
 
     private fun askConfirmDelete() {
+        if (isBlockedConversation) {
+            ConfirmationDialog(this, getString(R.string.delete_blocked_messages_confirmation)) {
+                ensureBackgroundThread {
+                    deleteBlockedMessages(
+                        getBlockedConversationMessages(blockedConversationAddress()).map { it.toBlockedMessageEntry() }
+                    )
+                    runOnUiThread {
+                        finish()
+                    }
+                }
+            }
+            return
+        }
         val confirmationMessage = R.string.delete_whole_conversation_confirmation
         ConfirmationDialog(this, getString(confirmationMessage)) {
             ensureBackgroundThread {
@@ -1212,6 +1272,35 @@ class ThreadActivity : SimpleActivity() {
             runOnUiThread {
                 refreshConversations()
                 finish()
+            }
+        }
+    }
+
+    private fun moveConversationToGroup() {
+        promptMoveConversationsToGroup(
+            threadIds = listOf(threadId),
+            currentGroupId = conversation?.groupId ?: 0L,
+        ) {
+            ensureBackgroundThread {
+                conversation = conversationsDB.getConversationWithThreadId(threadId)
+                runOnUiThread {
+                    if (!isDestroyed && !isFinishing) {
+                        refreshMenuItems()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun removeConversationFromGroup() {
+        ensureBackgroundThread {
+            removeConversationsFromGroup(listOf(threadId))
+            conversation = conversation?.copy(groupId = 0L)
+            runOnUiThread {
+                refreshConversations()
+                if (!isDestroyed && !isFinishing) {
+                    refreshMenuItems()
+                }
             }
         }
     }
@@ -1282,6 +1371,15 @@ class ThreadActivity : SimpleActivity() {
     }
 
     private fun markAsUnread() {
+        if (isBlockedConversation) {
+            ensureBackgroundThread {
+                markBlockedConversationUnread(blockedConversationAddress())
+                runOnUiThread {
+                    finish()
+                }
+            }
+            return
+        }
         ensureBackgroundThread {
             conversationsDB.markUnread(threadId)
             markThreadMessagesUnread(threadId)
@@ -2135,9 +2233,13 @@ class ThreadActivity : SimpleActivity() {
     }
 
     private fun maybeSetupRecycleBinView() {
-        if (isRecycleBin) {
+        if (isRecycleBin || isBlockedConversation) {
             binding.messageHolder.root.beGone()
         }
+    }
+
+    private fun blockedConversationAddress(): String {
+        return intent.getStringExtra(THREAD_NUMBER).orEmpty()
     }
 
     private fun hideAttachmentPicker() {

@@ -11,6 +11,8 @@ import android.os.Bundle
 import android.provider.Telephony
 import android.text.TextUtils
 import androidx.appcompat.content.res.AppCompatResources
+import com.google.android.material.tabs.TabLayout
+import org.fossify.commons.dialogs.ConfirmationDialog
 import org.fossify.commons.dialogs.PermissionRequiredDialog
 import org.fossify.commons.extensions.adjustAlpha
 import org.fossify.commons.extensions.appLaunched
@@ -27,6 +29,7 @@ import org.fossify.commons.extensions.convertToBitmap
 import org.fossify.commons.extensions.fadeIn
 import org.fossify.commons.extensions.formatDateOrTime
 import org.fossify.commons.extensions.getMyContactsCursor
+import org.fossify.commons.extensions.getContrastColor
 import org.fossify.commons.extensions.getProperBackgroundColor
 import org.fossify.commons.extensions.getProperPrimaryColor
 import org.fossify.commons.extensions.getProperTextColor
@@ -51,22 +54,40 @@ import org.fossify.commons.models.FAQItem
 import org.fossify.commons.models.Release
 import org.fossify.messages.BuildConfig
 import org.fossify.messages.R
+import org.fossify.messages.adapters.ArchivedConversationsAdapter
+import org.fossify.messages.adapters.BaseConversationsAdapter
+import org.fossify.messages.adapters.BlockedConversationsAdapter
 import org.fossify.messages.adapters.ConversationsAdapter
+import org.fossify.messages.adapters.GroupConversationsAdapter
 import org.fossify.messages.adapters.SearchResultsAdapter
 import org.fossify.messages.databinding.ActivityMainBinding
+import org.fossify.messages.dialogs.GroupNameDialog
 import org.fossify.messages.extensions.checkAndDeleteOldRecycleBinMessages
 import org.fossify.messages.extensions.clearAllMessagesIfNeeded
 import org.fossify.messages.extensions.clearExpiredScheduledMessages
 import org.fossify.messages.extensions.config
+import org.fossify.messages.extensions.conversationGroupsDB
 import org.fossify.messages.extensions.conversationsDB
+import org.fossify.messages.extensions.createConversationGroup
+import org.fossify.messages.extensions.deleteConversationGroup
+import org.fossify.messages.extensions.removeAllArchivedConversations
+import org.fossify.messages.extensions.renameConversationGroup
+import org.fossify.messages.extensions.peekBlockedConversations
+import org.fossify.messages.extensions.reloadBlockedConversations
 import org.fossify.messages.extensions.getConversations
 import org.fossify.messages.extensions.getMessages
+import org.fossify.messages.extensions.getUnreadCountsByThread
+import org.fossify.messages.extensions.unreadBlockedBadgeText
 import org.fossify.messages.extensions.insertOrUpdateConversation
 import org.fossify.messages.extensions.messagesDB
+import org.fossify.messages.helpers.IS_BLOCKED_CONVERSATION
 import org.fossify.messages.helpers.SEARCHED_MESSAGE_ID
+import org.fossify.messages.helpers.SHOW_BLOCKED_TAB
 import org.fossify.messages.helpers.THREAD_ID
+import org.fossify.messages.helpers.THREAD_NUMBER
 import org.fossify.messages.helpers.THREAD_TITLE
 import org.fossify.messages.models.Conversation
+import org.fossify.messages.models.ConversationGroup
 import org.fossify.messages.models.Events
 import org.fossify.messages.models.Message
 import org.fossify.messages.models.SearchResult
@@ -83,6 +104,22 @@ class MainActivity : SimpleActivity() {
     private var storedFontSize = 0
     private var lastSearchedText = ""
     private var bus: EventBus? = null
+    private val blockedRefreshLock = Any()
+    private var blockedRefreshRunning = false
+    private var blockedRefreshAgain = false
+    private var showingBlockedTab = false
+    private var showingArchivedTab = false
+    private var appliedShowBlockedTab: Boolean? = null
+    private var appliedShowArchivedTab: Boolean? = null
+    private var openBlockedDespiteHiddenTab = false
+    private var ignoreTabSelection = false
+    private var groupsLoaded = false
+    private var groupRefreshGeneration = 0
+    private var selectedGroupId = 0L
+    private var conversationGroups = emptyList<ConversationGroup>()
+    private var groupedConversations = emptyList<Conversation>()
+    private var inboxConversations = ArrayList<Conversation>()
+    private var archivedConversations = ArrayList<Conversation>()
 
     private val binding by viewBinding(ActivityMainBinding::inflate)
 
@@ -93,6 +130,7 @@ class MainActivity : SimpleActivity() {
         appLaunched(BuildConfig.APPLICATION_ID)
         setupOptionsMenu()
         refreshMenuItems()
+        setupConversationTabs()
 
         setupEdgeToEdge(padBottomImeAndSystem = listOf(binding.conversationsList))
 
@@ -111,7 +149,7 @@ class MainActivity : SimpleActivity() {
         updateMenuColors()
         refreshMenuItems()
 
-        getOrCreateConversationsAdapter().apply {
+        (binding.conversationsList.adapter as? BaseConversationsAdapter)?.apply {
             if (storedTextColor != getProperTextColor()) {
                 updateTextColor(getProperTextColor())
             }
@@ -123,6 +161,10 @@ class MainActivity : SimpleActivity() {
             updateDrafts()
         }
 
+        applyConversationTabVisibility()
+        styleConversationTabs()
+        binding.conversationsFab.beVisibleIf(showingInbox())
+
         updateTextColors(binding.mainCoordinator)
         binding.searchHolder.setBackgroundColor(getProperBackgroundColor())
 
@@ -133,6 +175,15 @@ class MainActivity : SimpleActivity() {
         binding.conversationsProgressBar.setIndicatorColor(properPrimaryColor)
         binding.conversationsProgressBar.trackColor = properPrimaryColor.adjustAlpha(LOWER_ALPHA)
         checkShortcut()
+        refreshBlockedTab()
+        refreshArchivedTab()
+        refreshConversationGroups()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        openBlockedTabIfRequested()
     }
 
     override fun onPause() {
@@ -178,7 +229,12 @@ class MainActivity : SimpleActivity() {
         binding.mainMenu.requireToolbar().setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.show_recycle_bin -> launchRecycleBin()
-                R.id.show_archived -> launchArchivedConversations()
+                R.id.show_archived -> showArchivedTab()
+                R.id.empty_archive -> confirmEmptyArchive()
+                R.id.show_blocked_messages -> showBlockedTab()
+                R.id.add_group -> askCreateGroup()
+                R.id.rename_group -> askRenameGroup()
+                R.id.delete_group -> confirmDeleteSelectedGroup()
                 R.id.settings -> launchSettings()
                 R.id.about -> launchAbout()
                 else -> return@setOnMenuItemClickListener false
@@ -190,6 +246,690 @@ class MainActivity : SimpleActivity() {
     private fun refreshMenuItems() {
         binding.mainMenu.requireToolbar().menu.apply {
             findItem(R.id.show_archived).isVisible = config.isArchiveAvailable
+            findItem(R.id.empty_archive).isVisible =
+                showingArchivedTab && archivedConversations.isNotEmpty()
+            findItem(R.id.rename_group).isVisible = selectedGroupId != 0L
+            findItem(R.id.delete_group).isVisible = selectedGroupId != 0L
+        }
+    }
+
+    private fun setupConversationTabs() {
+        binding.conversationsTabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                showConversationTab(tab.position)
+            }
+
+            override fun onTabUnselected(tab: TabLayout.Tab) = Unit
+
+            override fun onTabReselected(tab: TabLayout.Tab) {
+                showConversationTab(tab.position)
+            }
+        })
+        applyConversationTabVisibility()
+    }
+
+    private fun blockedTabIndex(): Int {
+        if (!config.showBlockedMessagesTab) {
+            return -1
+        }
+        return 1
+    }
+
+    private fun archivedTabIndex(): Int {
+        if (!config.showArchivedMessagesTab) {
+            return -1
+        }
+        return if (config.showBlockedMessagesTab) 2 else 1
+    }
+
+    private fun groupTabOffset(): Int {
+        var offset = 1
+        if (config.showBlockedMessagesTab) {
+            offset++
+        }
+        if (config.showArchivedMessagesTab) {
+            offset++
+        }
+        return offset
+    }
+
+    private fun applyConversationTabVisibility() {
+        val showBlocked = config.showBlockedMessagesTab
+        val showArchived = config.showArchivedMessagesTab
+        if (
+            showBlocked == appliedShowBlockedTab &&
+            showArchived == appliedShowArchivedTab &&
+            binding.conversationsTabs.tabCount > 0
+        ) {
+            openBlockedDespiteHiddenTab = false
+            return
+        }
+
+        val leaveBlockedView = appliedShowBlockedTab == true &&
+            !showBlocked &&
+            showingBlockedTab &&
+            !openBlockedDespiteHiddenTab
+        val leaveArchivedView = appliedShowArchivedTab == true &&
+            !showArchived &&
+            showingArchivedTab
+        openBlockedDespiteHiddenTab = false
+        appliedShowBlockedTab = showBlocked
+        appliedShowArchivedTab = showArchived
+        if (leaveBlockedView) {
+            showingBlockedTab = false
+        }
+        if (leaveArchivedView) {
+            showingArchivedTab = false
+        }
+
+        ignoreTabSelection = true
+        try {
+            val tabs = binding.conversationsTabs
+            tabs.removeAllTabs()
+            tabs.addTab(tabs.newTab().setText(R.string.messages), false)
+            if (showBlocked) {
+                tabs.addTab(tabs.newTab().setText(R.string.blocked), false)
+            }
+            if (showArchived) {
+                tabs.addTab(tabs.newTab().setText(R.string.archived_conversations), false)
+            }
+            conversationGroups.forEach { group ->
+                tabs.addTab(tabs.newTab().setText(group.name), false)
+            }
+            updateTabMode()
+            styleConversationTabs()
+            restoreSelectedTab()
+        } finally {
+            ignoreTabSelection = false
+        }
+
+        if (leaveBlockedView || leaveArchivedView) {
+            showConversationTab(0)
+        }
+    }
+
+    private fun styleConversationTabs() {
+        val primaryColor = getProperPrimaryColor()
+        binding.conversationsTabs.setSelectedTabIndicatorColor(primaryColor)
+        binding.conversationsTabs.setTabTextColors(getProperTextColor(), primaryColor)
+        binding.conversationsTabs.setBackgroundColor(getProperBackgroundColor())
+    }
+
+    private fun showConversationTab(position: Int) {
+        if (ignoreTabSelection) {
+            return
+        }
+        showingBlockedTab = position == blockedTabIndex()
+        showingArchivedTab = position == archivedTabIndex()
+        selectedGroupId = groupIdForTab(position)
+        binding.conversationsFab.beVisibleIf(showingInbox())
+        when {
+            showingBlockedTab -> showBlockedTabContent()
+            showingArchivedTab -> {
+                binding.conversationsProgressBar.hide()
+                loadArchivedConversations()
+            }
+            selectedGroupId != 0L -> showGroupTab()
+            else -> {
+                binding.conversationsProgressBar.hide()
+                setupConversations(inboxConversations)
+            }
+        }
+        refreshMenuItems()
+    }
+
+    private fun showingInbox() = !showingBlockedTab && !showingArchivedTab && selectedGroupId == 0L
+
+    private fun groupIdForTab(position: Int): Long {
+        val offset = groupTabOffset()
+        if (position < offset) {
+            return 0L
+        }
+        return conversationGroups.getOrNull(position - offset)?.id ?: 0L
+    }
+
+    private fun showBlockedTab() {
+        val index = blockedTabIndex()
+        if (index >= 0) {
+            selectConversationTab(index)
+            return
+        }
+        showingBlockedTab = true
+        showingArchivedTab = false
+        selectedGroupId = 0L
+        ignoreTabSelection = true
+        try {
+            binding.conversationsTabs.selectTab(null)
+        } finally {
+            ignoreTabSelection = false
+        }
+        binding.conversationsFab.beGone()
+        showBlockedTabContent()
+        refreshMenuItems()
+    }
+
+    private fun showArchivedTab() {
+        val index = archivedTabIndex()
+        if (index >= 0) {
+            selectConversationTab(index)
+            return
+        }
+        showingBlockedTab = false
+        showingArchivedTab = true
+        selectedGroupId = 0L
+        ignoreTabSelection = true
+        try {
+            binding.conversationsTabs.selectTab(null)
+        } finally {
+            ignoreTabSelection = false
+        }
+        binding.conversationsFab.beGone()
+        binding.conversationsProgressBar.hide()
+        loadArchivedConversations()
+        refreshMenuItems()
+    }
+
+    private fun selectConversationTab(index: Int) {
+        val tab = binding.conversationsTabs.getTabAt(index) ?: return
+        if (tab.isSelected) {
+            showConversationTab(index)
+        } else {
+            tab.select()
+        }
+    }
+
+    private fun openBlockedTabIfRequested() {
+        if (!intent.getBooleanExtra(SHOW_BLOCKED_TAB, false)) {
+            return
+        }
+        intent.removeExtra(SHOW_BLOCKED_TAB)
+        openBlockedDespiteHiddenTab = true
+        showBlockedTab()
+    }
+
+    private fun refreshBlockedTab() {
+        if (showingBlockedTab) {
+            showBlockedTabContent()
+            return
+        }
+        peekBlockedConversations()?.let { conversations ->
+            updateBlockedTabBadge(conversations.sumOf { it.unreadCount })
+        }
+        loadBlockedConversations()
+    }
+
+    private fun showBlockedTabContent() {
+        val cached = peekBlockedConversations()
+        if (cached != null) {
+            showBlockedConversations(cached)
+        } else if (binding.conversationsList.adapter !is BlockedConversationsAdapter) {
+            binding.conversationsFastscroller.beGone()
+            binding.noConversationsPlaceholder.text = getString(R.string.loading_messages)
+            binding.noConversationsPlaceholder.beVisible()
+            binding.noConversationsPlaceholder2.beGone()
+            binding.conversationsProgressBar.show()
+        }
+        loadBlockedConversations()
+    }
+
+    private fun updateBlockedTabBadge(count: Int) {
+        applyTabBadge(blockedTabIndex(), count)
+        val badgeText = unreadBlockedBadgeText(count)
+        val title = if (count > 0) {
+            getString(R.string.blocked_messages_with_count, badgeText)
+        } else {
+            getString(R.string.blocked_messages)
+        }
+        binding.mainMenu.requireToolbar().menu.findItem(R.id.show_blocked_messages)?.title = title
+    }
+
+    private fun loadBlockedConversations() {
+        synchronized(blockedRefreshLock) {
+            if (blockedRefreshRunning) {
+                blockedRefreshAgain = true
+                return
+            }
+            blockedRefreshRunning = true
+        }
+        ensureBackgroundThread {
+            var conversations = arrayListOf<Conversation>()
+            do {
+                synchronized(blockedRefreshLock) {
+                    blockedRefreshAgain = false
+                }
+                conversations = try {
+                    reloadBlockedConversations()
+                } catch (_: Exception) {
+                    arrayListOf()
+                }
+                val count = conversations.sumOf { it.unreadCount }
+                val latest = conversations
+                runOnUiThread {
+                    if (isDestroyed || isFinishing) {
+                        return@runOnUiThread
+                    }
+                    updateBlockedTabBadge(count)
+                    if (showingBlockedTab) {
+                        showBlockedConversations(latest)
+                    }
+                }
+            } while (
+                synchronized(blockedRefreshLock) {
+                    if (blockedRefreshAgain) {
+                        true
+                    } else {
+                        blockedRefreshRunning = false
+                        false
+                    }
+                }
+            )
+        }
+    }
+
+    private fun showBlockedConversations(conversations: ArrayList<Conversation>) {
+        val hasConversations = conversations.isNotEmpty()
+        binding.conversationsProgressBar.hide()
+        binding.noConversationsPlaceholder.text = getString(R.string.no_blocked_messages)
+        binding.noConversationsPlaceholder.beVisibleIf(!hasConversations)
+        binding.noConversationsPlaceholder2.beGone()
+        binding.conversationsFastscroller.beVisibleIf(hasConversations)
+
+        val currentAdapter = binding.conversationsList.adapter
+        if (currentAdapter is BlockedConversationsAdapter) {
+            currentAdapter.updateConversations(conversations)
+            return
+        }
+
+        BlockedConversationsAdapter(
+            activity = this,
+            recyclerView = binding.conversationsList,
+            refreshConversations = { loadBlockedConversations() },
+            itemClick = { handleBlockedConversationClick(it) },
+        ).apply {
+            binding.conversationsList.adapter = this
+            updateConversations(conversations)
+            if (areSystemAnimationsEnabled) {
+                binding.conversationsList.scheduleLayoutAnimation()
+            }
+        }
+    }
+
+    private fun refreshArchivedTab() {
+        ensureBackgroundThread {
+            val conversations = archivedConversationsForUi()
+            runOnUiThread {
+                if (isDestroyed || isFinishing) {
+                    return@runOnUiThread
+                }
+                updateArchivedTabBadge(conversations.sumOf { it.unreadCount })
+                if (showingArchivedTab) {
+                    showArchivedConversations(ArrayList(conversations))
+                }
+            }
+        }
+    }
+
+    private fun loadArchivedConversations() {
+        refreshArchivedTab()
+    }
+
+    private fun showArchivedConversations(conversations: ArrayList<Conversation>) {
+        val sortedConversations = conversations.sortedWith(
+            compareByDescending<Conversation> {
+                config.pinnedConversations.contains(it.threadId.toString())
+            }.thenByDescending { it.date }
+        ).toMutableList() as ArrayList<Conversation>
+        archivedConversations = sortedConversations
+        updateArchivedTabBadge(sortedConversations.sumOf { it.unreadCount })
+        refreshMenuItems()
+
+        val hasConversations = sortedConversations.isNotEmpty()
+        binding.conversationsProgressBar.hide()
+        binding.noConversationsPlaceholder.text = getString(R.string.no_archived_conversations)
+        binding.noConversationsPlaceholder.beVisibleIf(!hasConversations)
+        binding.noConversationsPlaceholder2.beGone()
+        binding.conversationsFastscroller.beVisibleIf(hasConversations)
+
+        val currentAdapter = binding.conversationsList.adapter
+        if (currentAdapter is ArchivedConversationsAdapter) {
+            currentAdapter.updateConversations(sortedConversations)
+            return
+        }
+
+        ArchivedConversationsAdapter(
+            activity = this,
+            recyclerView = binding.conversationsList,
+            onRefresh = { loadArchivedConversations() },
+            itemClick = { handleConversationClick(it) },
+        ).apply {
+            binding.conversationsList.adapter = this
+            updateConversations(sortedConversations)
+            if (areSystemAnimationsEnabled) {
+                binding.conversationsList.scheduleLayoutAnimation()
+            }
+        }
+    }
+
+    private fun updateArchivedTabBadge(count: Int) {
+        applyTabBadge(archivedTabIndex(), count)
+        val title = if (count > 0) {
+            getString(R.string.show_archived_conversations_with_count, unreadBlockedBadgeText(count))
+        } else {
+            getString(R.string.show_archived_conversations)
+        }
+        binding.mainMenu.requireToolbar().menu.findItem(R.id.show_archived)?.title = title
+    }
+
+    private fun archivedConversationsForUi(): List<Conversation> {
+        val stored = try {
+            conversationsDB.getAllArchived()
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val unreadMap = try {
+            getUnreadCountsByThread()
+        } catch (_: Exception) {
+            return stored.map { it.withVisibleUnreadCount() }
+        }
+        return stored.map { conversation ->
+            conversation.withVisibleUnreadCount(unreadMap[conversation.threadId] ?: 0)
+        }
+    }
+
+    private fun Conversation.withVisibleUnreadCount(liveCount: Int = unreadCount): Conversation {
+        val count = when {
+            liveCount > 0 -> liveCount
+            !read -> unreadCount.coerceAtLeast(1)
+            else -> 0
+        }
+        val isRead = count == 0
+        return if (unreadCount == count && read == isRead) {
+            this
+        } else {
+            copy(read = isRead, unreadCount = count)
+        }
+    }
+
+    private fun confirmEmptyArchive() {
+        ConfirmationDialog(
+            activity = this,
+            message = "",
+            messageId = R.string.empty_archive_confirmation,
+            positive = org.fossify.commons.R.string.yes,
+            negative = org.fossify.commons.R.string.no,
+        ) {
+            removeAllArchivedConversations {
+                loadArchivedConversations()
+            }
+        }
+    }
+
+    private fun applyTabBadge(index: Int, count: Int) {
+        val tab = binding.conversationsTabs.getTabAt(index) ?: return
+        if (count <= 0) {
+            tab.removeBadge()
+        } else {
+            tab.orCreateBadge.apply {
+                maxCharacterCount = TAB_BADGE_CHARACTERS
+                number = count
+                backgroundColor = getProperPrimaryColor()
+                badgeTextColor = getProperPrimaryColor().getContrastColor()
+            }
+        }
+    }
+
+    private fun showGroupTab() {
+        showGroupConversations(
+            ArrayList(groupedConversations.filter { it.groupId == selectedGroupId })
+        )
+        refreshConversationGroups()
+    }
+
+    private fun refreshConversationGroups(selectGroupId: Long = 0L) {
+        val generation = ++groupRefreshGeneration
+        ensureBackgroundThread {
+            val groups = try {
+                conversationGroupsDB.getAll()
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val grouped = groupedConversationsForUi()
+            val unreadCounts = grouped.groupBy { it.groupId }.mapValues { (_, conversations) ->
+                conversations.sumOf { it.unreadCount }
+            }
+            runOnUiThread {
+                if (isDestroyed || isFinishing || generation != groupRefreshGeneration) {
+                    return@runOnUiThread
+                }
+                groupsLoaded = true
+                groupedConversations = grouped
+                if (selectGroupId != 0L) {
+                    selectedGroupId = selectGroupId
+                    showingBlockedTab = false
+                    showingArchivedTab = false
+                }
+                syncGroupTabs(groups, unreadCounts)
+                if (selectedGroupId != 0L && !showingBlockedTab && !showingArchivedTab) {
+                    showGroupConversations(
+                        ArrayList(grouped.filter { it.groupId == selectedGroupId })
+                    )
+                }
+                binding.conversationsFab.beVisibleIf(showingInbox())
+                refreshMenuItems()
+            }
+        }
+    }
+
+    private fun syncGroupTabs(
+        groups: List<ConversationGroup>,
+        unreadCounts: Map<Long, Int>,
+    ) {
+        val tabs = binding.conversationsTabs
+        val unchanged = conversationGroups.size == groups.size &&
+            conversationGroups.zip(groups).all { (current, updated) ->
+                current.id == updated.id && current.name == updated.name
+            }
+        conversationGroups = groups
+        if (!unchanged) {
+            ignoreTabSelection = true
+            try {
+                while (tabs.tabCount > groupTabOffset()) {
+                    tabs.removeTabAt(tabs.tabCount - 1)
+                }
+                groups.forEach { group ->
+                    tabs.addTab(tabs.newTab().setText(group.name), false)
+                }
+                updateTabMode()
+                styleConversationTabs()
+                restoreSelectedTab()
+            } finally {
+                ignoreTabSelection = false
+            }
+        }
+        groups.forEachIndexed { index, group ->
+            applyTabBadge(groupTabOffset() + index, unreadCounts[group.id] ?: 0)
+        }
+    }
+
+    private fun updateTabMode() {
+        val scrollable = binding.conversationsTabs.tabCount > groupTabOffset()
+        binding.conversationsTabs.tabMode = if (scrollable) {
+            TabLayout.MODE_SCROLLABLE
+        } else {
+            TabLayout.MODE_FIXED
+        }
+        binding.conversationsTabs.tabGravity = if (scrollable) {
+            TabLayout.GRAVITY_START
+        } else {
+            TabLayout.GRAVITY_FILL
+        }
+    }
+
+    private fun restoreSelectedTab() {
+        val hiddenBlocked = showingBlockedTab && blockedTabIndex() < 0
+        val hiddenArchived = showingArchivedTab && archivedTabIndex() < 0
+        if (hiddenBlocked || hiddenArchived) {
+            binding.conversationsTabs.selectTab(null)
+            return
+        }
+        val tab = binding.conversationsTabs.getTabAt(selectedTabIndex()) ?: return
+        if (!tab.isSelected) {
+            tab.select()
+        }
+    }
+
+    private fun selectedTabIndex(): Int {
+        val blockedIndex = blockedTabIndex()
+        if (showingBlockedTab && blockedIndex >= 0) {
+            return blockedIndex
+        }
+        val archivedIndex = archivedTabIndex()
+        if (showingArchivedTab && archivedIndex >= 0) {
+            return archivedIndex
+        }
+        val groupIndex = conversationGroups.indexOfFirst { it.id == selectedGroupId }
+        if (selectedGroupId != 0L && groupIndex >= 0) {
+            return groupTabOffset() + groupIndex
+        }
+        selectedGroupId = 0L
+        return 0
+    }
+
+    private fun groupedConversationsForUi(): List<Conversation> {
+        val stored = try {
+            conversationsDB.getGrouped()
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val unreadMap = try {
+            getUnreadCountsByThread()
+        } catch (_: Exception) {
+            return stored.map { it.withVisibleUnreadCount() }
+        }
+        return stored.map { conversation ->
+            conversation.withVisibleUnreadCount(unreadMap[conversation.threadId] ?: 0)
+        }
+    }
+
+    private fun showGroupConversations(conversations: ArrayList<Conversation>) {
+        if (selectedGroupId == 0L || showingBlockedTab || showingArchivedTab) {
+            return
+        }
+        if (!groupsLoaded) {
+            binding.conversationsProgressBar.show()
+            binding.noConversationsPlaceholder.beGone()
+            binding.noConversationsPlaceholder2.beGone()
+            binding.conversationsFastscroller.beGone()
+            binding.conversationsList.adapter = null
+            return
+        }
+
+        val sortedConversations = conversations.sortedWith(
+            compareByDescending<Conversation> {
+                config.pinnedConversations.contains(it.threadId.toString())
+            }.thenByDescending { it.date }
+        ).toMutableList() as ArrayList<Conversation>
+
+        val hasConversations = sortedConversations.isNotEmpty()
+        binding.conversationsProgressBar.hide()
+        binding.noConversationsPlaceholder.text = getString(R.string.no_conversations_in_group)
+        binding.noConversationsPlaceholder.beVisibleIf(!hasConversations)
+        binding.noConversationsPlaceholder2.beGone()
+        binding.conversationsFastscroller.beVisibleIf(hasConversations)
+
+        val currentAdapter = binding.conversationsList.adapter
+        if (currentAdapter is GroupConversationsAdapter) {
+            currentAdapter.updateConversations(sortedConversations)
+            return
+        }
+
+        GroupConversationsAdapter(
+            activity = this,
+            recyclerView = binding.conversationsList,
+            groupId = { selectedGroupId },
+            onRefresh = { refreshConversationGroups() },
+            itemClick = { handleConversationClick(it) },
+        ).apply {
+            binding.conversationsList.adapter = this
+            updateConversations(sortedConversations)
+            if (areSystemAnimationsEnabled) {
+                binding.conversationsList.scheduleLayoutAnimation()
+            }
+        }
+    }
+
+    private fun askCreateGroup() {
+        GroupNameDialog(
+            activity = this,
+            titleRes = R.string.add_group,
+            isNameTaken = { name ->
+                conversationGroups.any { it.name.equals(name, ignoreCase = true) }
+            },
+        ) { name ->
+            ensureBackgroundThread {
+                val id = createConversationGroup(name)
+                runOnUiThread {
+                    if (isDestroyed || isFinishing) {
+                        return@runOnUiThread
+                    }
+                    if (id == 0L) {
+                        toast(R.string.group_name_exists)
+                    } else {
+                        refreshConversationGroups(selectGroupId = id)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun askRenameGroup() {
+        val group = conversationGroups.find { it.id == selectedGroupId } ?: return
+        GroupNameDialog(
+            activity = this,
+            initialName = group.name,
+            titleRes = R.string.rename_group,
+            isNameTaken = { name ->
+                conversationGroups.any { it.id != group.id && it.name.equals(name, ignoreCase = true) }
+            },
+        ) { name ->
+            ensureBackgroundThread {
+                renameConversationGroup(group.id, name)
+                runOnUiThread {
+                    if (!isDestroyed && !isFinishing) {
+                        refreshConversationGroups()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun confirmDeleteSelectedGroup() {
+        val group = conversationGroups.find { it.id == selectedGroupId } ?: return
+        ConfirmationDialog(this, getString(R.string.delete_group_confirmation, group.name)) {
+            ensureBackgroundThread {
+                deleteConversationGroup(group.id)
+                runOnUiThread {
+                    if (isDestroyed || isFinishing) {
+                        return@runOnUiThread
+                    }
+                    selectedGroupId = 0L
+                    showingBlockedTab = false
+                    showingArchivedTab = false
+                    selectConversationTab(0)
+                    initMessenger()
+                }
+            }
+        }
+    }
+
+    private fun handleBlockedConversationClick(any: Any) {
+        val conversation = any as Conversation
+        Intent(this, ThreadActivity::class.java).apply {
+            putExtra(THREAD_ID, conversation.threadId)
+            putExtra(THREAD_TITLE, conversation.title)
+            putExtra(THREAD_NUMBER, conversation.phoneNumber)
+            putExtra(IS_BLOCKED_CONVERSATION, true)
+            startActivity(this)
         }
     }
 
@@ -256,6 +996,7 @@ class MainActivity : SimpleActivity() {
                             }
 
                             initMessenger()
+                            openBlockedTabIfRequested()
                             bus = EventBus.getDefault()
                             try {
                                 bus!!.register(this)
@@ -296,11 +1037,17 @@ class MainActivity : SimpleActivity() {
             val archived = try {
                 conversationsDB.getAllArchived()
             } catch (_: Exception) {
-                listOf()
+                emptyList()
             }
+            val archivedForUi = archivedConversationsForUi()
 
             runOnUiThread {
+                updateArchivedTabBadge(archivedForUi.sumOf { it.unreadCount })
+                if (showingArchivedTab) {
+                    showArchivedConversations(ArrayList(archivedForUi))
+                }
                 setupConversations(conversations, cached = true)
+                refreshConversationGroups()
                 getNewConversations(
                     (conversations + archived).toMutableList() as ArrayList<Conversation>
                 )
@@ -320,7 +1067,7 @@ class MainActivity : SimpleActivity() {
             conversations.forEach { clonedConversation ->
                 val threadIds = cachedConversations.map { it.threadId }
                 if (!threadIds.contains(clonedConversation.threadId)) {
-                    conversationsDB.insertOrUpdate(clonedConversation)
+                    insertOrUpdateConversation(clonedConversation)
                     cachedConversations.add(clonedConversation)
                 }
             }
@@ -364,8 +1111,14 @@ class MainActivity : SimpleActivity() {
             }
 
             val allConversations = conversationsDB.getNonArchived() as ArrayList<Conversation>
+            val archivedForUi = archivedConversationsForUi()
             runOnUiThread {
+                updateArchivedTabBadge(archivedForUi.sumOf { it.unreadCount })
+                if (showingArchivedTab) {
+                    showArchivedConversations(ArrayList(archivedForUi))
+                }
                 setupConversations(allConversations)
+                refreshConversationGroups()
             }
 
             if (config.appRunCount == 1) {
@@ -380,22 +1133,23 @@ class MainActivity : SimpleActivity() {
     }
 
     private fun getOrCreateConversationsAdapter(): ConversationsAdapter {
-        var currAdapter = binding.conversationsList.adapter
-        if (currAdapter == null) {
-            hideKeyboard()
-            currAdapter = ConversationsAdapter(
-                activity = this,
-                recyclerView = binding.conversationsList,
-                onRefresh = { notifyDatasetChanged() },
-                itemClick = { handleConversationClick(it) }
-            )
+        val currentAdapter = binding.conversationsList.adapter
+        if (currentAdapter is ConversationsAdapter) {
+            return currentAdapter
+        }
 
-            binding.conversationsList.adapter = currAdapter
+        hideKeyboard()
+        return ConversationsAdapter(
+            activity = this,
+            recyclerView = binding.conversationsList,
+            onRefresh = { notifyDatasetChanged() },
+            itemClick = { handleConversationClick(it) }
+        ).apply {
+            binding.conversationsList.adapter = this
             if (areSystemAnimationsEnabled) {
                 binding.conversationsList.scheduleLayoutAnimation()
             }
         }
-        return currAdapter as ConversationsAdapter
     }
 
     private fun setupConversations(
@@ -408,6 +1162,11 @@ class MainActivity : SimpleActivity() {
                     config.pinnedConversations.contains(it.threadId.toString())
                 }.thenByDescending { it.date }
             ).toMutableList() as ArrayList<Conversation>
+
+        inboxConversations = sortedConversations
+        if (!showingInbox()) {
+            return
+        }
 
         if (cached && config.appRunCount == 1) {
             // there are no cached conversations on the first run so we show the
@@ -615,11 +1374,6 @@ class MainActivity : SimpleActivity() {
         startActivity(Intent(applicationContext, RecycleBinConversationsActivity::class.java))
     }
 
-    private fun launchArchivedConversations() {
-        hideKeyboard()
-        startActivity(Intent(applicationContext, ArchivedConversationsActivity::class.java))
-    }
-
     private fun launchSettings() {
         hideKeyboard()
         startActivity(Intent(applicationContext, SettingsActivity::class.java))
@@ -676,9 +1430,18 @@ class MainActivity : SimpleActivity() {
         initMessenger()
     }
 
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun refreshBlockedMessages(@Suppress("unused") event: Events.RefreshBlockedMessages) {
+        refreshBlockedTab()
+    }
+
     private fun checkWhatsNewDialog() {
         arrayListOf<Release>().apply {
             checkWhatsNew(this, BuildConfig.VERSION_CODE)
         }
+    }
+
+    companion object {
+        private const val TAB_BADGE_CHARACTERS = 3
     }
 }

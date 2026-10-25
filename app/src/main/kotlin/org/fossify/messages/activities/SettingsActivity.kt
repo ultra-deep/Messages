@@ -34,8 +34,11 @@ import org.fossify.messages.databinding.ActivitySettingsBinding
 import org.fossify.messages.dialogs.ExportMessagesDialog
 import org.fossify.messages.extensions.config
 import org.fossify.messages.extensions.emptyMessagesRecycleBin
+import org.fossify.messages.extensions.getUnreadBlockedMessageCount
 import org.fossify.messages.extensions.messagesDB
+import org.fossify.messages.extensions.unreadBlockedBadgeText
 import org.fossify.messages.helpers.FILE_SIZE_100_KB
+import org.fossify.messages.helpers.SHOW_BLOCKED_TAB
 import org.fossify.messages.helpers.FILE_SIZE_1_MB
 import org.fossify.messages.helpers.FILE_SIZE_200_KB
 import org.fossify.messages.helpers.FILE_SIZE_2_MB
@@ -103,6 +106,8 @@ class SettingsActivity : SimpleActivity() {
         setupLanguage()
         setupManageBlockedNumbers()
         setupManageBlockedKeywords()
+        setupShowBlockedMessagesTab()
+        setupBlockedMessages()
         setupChangeDateTimeFormat()
         setupFontSize()
         setupShowCharacterCounter()
@@ -111,6 +116,7 @@ class SettingsActivity : SimpleActivity() {
         setupEnableDeliveryReports()
         setupSendLongMessageAsMMS()
         setupGroupMessageAsMMS()
+        setupShowArchivedMessagesTab()
         setupKeepConversationsArchived()
         setupLockScreenVisibility()
         setupMMSFileSizeLimit()
@@ -219,6 +225,39 @@ class SettingsActivity : SimpleActivity() {
         }
     }
 
+    private fun setupShowBlockedMessagesTab() = binding.apply {
+        settingsShowBlockedMessagesTab.isChecked = config.showBlockedMessagesTab
+        settingsShowBlockedMessagesTabHolder.setOnClickListener {
+            settingsShowBlockedMessagesTab.toggle()
+            config.showBlockedMessagesTab = settingsShowBlockedMessagesTab.isChecked
+        }
+    }
+
+    private fun setupBlockedMessages() = binding.apply {
+        settingsBlockedMessagesHolder.setOnClickListener {
+            Intent(this@SettingsActivity, MainActivity::class.java).apply {
+                putExtra(SHOW_BLOCKED_TAB, true)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                startActivity(this)
+            }
+        }
+        ensureBackgroundThread {
+            val count = try {
+                getUnreadBlockedMessageCount()
+            } catch (_: Exception) {
+                0
+            }
+            val label = if (count > 0) {
+                getString(R.string.blocked_messages_with_count, unreadBlockedBadgeText(count))
+            } else {
+                getString(R.string.blocked_messages)
+            }
+            runOnUiThread {
+                settingsBlockedMessages.text = label
+            }
+        }
+    }
+
     private fun setupChangeDateTimeFormat() = binding.apply {
         settingsChangeDateTimeFormatHolder.setOnClickListener {
             ChangeDateTimeFormatDialog(this@SettingsActivity) {
@@ -292,6 +331,14 @@ class SettingsActivity : SimpleActivity() {
         settingsSendGroupMessageMmsHolder.setOnClickListener {
             settingsSendGroupMessageMms.toggle()
             config.sendGroupMessageMMS = settingsSendGroupMessageMms.isChecked
+        }
+    }
+
+    private fun setupShowArchivedMessagesTab() = binding.apply {
+        settingsShowArchivedMessagesTab.isChecked = config.showArchivedMessagesTab
+        settingsShowArchivedMessagesTabHolder.setOnClickListener {
+            settingsShowArchivedMessagesTab.toggle()
+            config.showArchivedMessagesTab = settingsShowArchivedMessagesTab.isChecked
         }
     }
 

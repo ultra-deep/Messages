@@ -19,6 +19,7 @@ data class Conversation(
     @ColumnInfo(name = "uses_custom_title") var usesCustomTitle: Boolean = false,
     @ColumnInfo(name = "archived") var isArchived: Boolean = false,
     @ColumnInfo(name = "unread_count") var unreadCount: Int = 0,
+    @ColumnInfo(name = "group_id") var groupId: Long = 0,
 ) {
 
     companion object {

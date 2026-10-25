@@ -4,44 +4,36 @@ import android.content.Context
 import android.net.Uri
 import com.bumptech.glide.Glide
 import com.klinker.android.send_message.MmsReceivedReceiver
-import org.fossify.commons.extensions.baseConfig
 import org.fossify.commons.extensions.getMyContactsCursor
 import org.fossify.commons.extensions.showErrorToast
-import org.fossify.commons.helpers.ContactLookupResult
 import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.messages.R
+import org.fossify.messages.extensions.deleteMessage
 import org.fossify.messages.extensions.getConversations
-import org.fossify.messages.extensions.getMMS
 import org.fossify.messages.extensions.getLatestMMS
+import org.fossify.messages.extensions.getMMS
 import org.fossify.messages.extensions.getNameFromAddress
 import org.fossify.messages.extensions.insertOrUpdateConversation
 import org.fossify.messages.extensions.messagesDB
+import org.fossify.messages.extensions.saveBlockedMessage
 import org.fossify.messages.extensions.shouldUnarchive
 import org.fossify.messages.extensions.showReceivedMessageNotification
 import org.fossify.messages.extensions.updateConversationArchivedStatus
-import org.fossify.messages.helpers.ReceiverUtils.isMessageFilteredOut
+import org.fossify.messages.helpers.ReceiverUtils.isIncomingMessageBlocked
 import org.fossify.messages.helpers.isBlockedSender
+import org.fossify.messages.helpers.refreshBlockedMessages
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.helpers.refreshMessages
 import org.fossify.messages.models.Message
 
 class MmsReceiver : MmsReceivedReceiver() {
 
-    override fun isAddressBlocked(context: Context, address: String): Boolean {
-        if (context.isBlockedSender(address)) return true
-        if (context.baseConfig.blockUnknownNumbers) {
-            val privateCursor = context.getMyContactsCursor(favoritesOnly = false, withPhoneNumbersOnly = true)
-            val result = SimpleContactsHelper(context).existsSync(address, privateCursor)
-            return result == ContactLookupResult.NotFound
-        }
+    // The download is already on disk before this check. Returning true deletes it
+    // before the app can keep a copy for the blocked-messages screen.
+    override fun isAddressBlocked(context: Context, address: String) = false
 
-        return false
-    }
-
-    override fun isContentBlocked(context: Context, content: String): Boolean {
-        return isMessageFilteredOut(context, content)
-    }
+    override fun isContentBlocked(context: Context, content: String) = false
 
     override fun onMessageReceived(context: Context, messageUri: Uri?) {
         val mms = if (messageUri != null) {
@@ -51,8 +43,26 @@ class MmsReceiver : MmsReceivedReceiver() {
         } ?: return
 
         val address = mms.getSender()?.phoneNumbers?.firstOrNull()?.normalizedNumber ?: mms.senderPhoneNumber
-        val size = context.resources.getDimension(R.dimen.notification_large_icon_size).toInt()
         ensureBackgroundThread {
+            if (isIncomingMessageBlocked(context, address, mms.body)) {
+                if (!context.isBlockedSender(address)) {
+                    val body = mms.body.ifBlank { context.getString(R.string.attachment) }
+                    context.saveBlockedMessage(
+                        address = address,
+                        body = body,
+                        dateMillis = mms.millis(),
+                        subscriptionId = mms.subscriptionId,
+                    )
+                    if (mms.id != 0L) {
+                        context.deleteMessage(mms.id, isMMS = true)
+                    }
+                } else {
+                    refreshBlockedMessages()
+                }
+                return@ensureBackgroundThread
+            }
+
+            val size = context.resources.getDimension(R.dimen.notification_large_icon_size).toInt()
             handleMmsMessage(context, mms, size, address)
         }
     }

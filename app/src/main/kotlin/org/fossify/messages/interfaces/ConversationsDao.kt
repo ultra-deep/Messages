@@ -12,11 +12,18 @@ interface ConversationsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertOrUpdate(conversation: Conversation): Long
 
-    @Query("SELECT (SELECT body FROM messages LEFT OUTER JOIN recycle_bin_messages ON messages.id = recycle_bin_messages.id WHERE recycle_bin_messages.id IS NULL AND messages.thread_id = conversations.thread_id ORDER BY messages.date DESC LIMIT 1) as new_snippet, * FROM conversations WHERE archived = 0")
+    @Query("SELECT (SELECT body FROM messages LEFT OUTER JOIN recycle_bin_messages ON messages.id = recycle_bin_messages.id WHERE recycle_bin_messages.id IS NULL AND messages.thread_id = conversations.thread_id ORDER BY messages.date DESC LIMIT 1) as new_snippet, * FROM conversations WHERE archived = 0 AND group_id = 0")
     fun getNonArchivedWithLatestSnippet(): List<ConversationWithSnippetOverride>
 
     fun getNonArchived(): List<Conversation> {
         return getNonArchivedWithLatestSnippet().map { it.toConversation() }
+    }
+
+    @Query("SELECT (SELECT body FROM messages LEFT OUTER JOIN recycle_bin_messages ON messages.id = recycle_bin_messages.id WHERE recycle_bin_messages.id IS NULL AND messages.thread_id = conversations.thread_id ORDER BY messages.date DESC LIMIT 1) as new_snippet, * FROM conversations WHERE archived = 0 AND group_id != 0")
+    fun getGroupedWithLatestSnippet(): List<ConversationWithSnippetOverride>
+
+    fun getGrouped(): List<Conversation> {
+        return getGroupedWithLatestSnippet().map { it.toConversation() }
     }
 
     @Query("SELECT (SELECT body FROM messages LEFT OUTER JOIN recycle_bin_messages ON messages.id = recycle_bin_messages.id WHERE recycle_bin_messages.id IS NULL AND messages.thread_id = conversations.thread_id ORDER BY messages.date DESC LIMIT 1) as new_snippet, * FROM conversations WHERE archived = 1")
@@ -42,17 +49,26 @@ interface ConversationsDao {
     @Query("SELECT * FROM conversations WHERE title LIKE :text")
     fun getConversationsWithText(text: String): List<Conversation>
 
-    @Query("UPDATE conversations SET read = 1 WHERE thread_id = :threadId")
+    @Query("UPDATE conversations SET read = 1, unread_count = 0 WHERE thread_id = :threadId")
     fun markRead(threadId: Long)
 
-    @Query("UPDATE conversations SET read = 0 WHERE thread_id = :threadId")
+    @Query("UPDATE conversations SET read = 0, unread_count = CASE WHEN unread_count > 0 THEN unread_count ELSE 1 END WHERE thread_id = :threadId")
     fun markUnread(threadId: Long)
 
-    @Query("UPDATE conversations SET archived = 1 WHERE thread_id = :threadId")
+    @Query("UPDATE conversations SET archived = 1, group_id = 0 WHERE thread_id = :threadId")
     fun moveToArchive(threadId: Long)
 
     @Query("UPDATE conversations SET archived = 0 WHERE thread_id = :threadId")
     fun unarchive(threadId: Long)
+
+    @Query("UPDATE conversations SET group_id = :groupId, archived = 0 WHERE thread_id = :threadId")
+    fun moveToGroup(threadId: Long, groupId: Long)
+
+    @Query("UPDATE conversations SET group_id = 0 WHERE thread_id = :threadId")
+    fun removeFromGroup(threadId: Long)
+
+    @Query("UPDATE conversations SET group_id = 0 WHERE group_id = :groupId")
+    fun clearGroup(groupId: Long)
 
     @Query("DELETE FROM conversations WHERE thread_id = :threadId")
     fun deleteThreadId(threadId: Long)
