@@ -71,16 +71,19 @@
     <string name="empty_archive_confirmation">Are you sure you want to empty the archive? All archived conversations will be permanently lost.</string>
     <string name="keep_conversations_archived">Keep conversations archived</string>
     <string name="show_archived_messages_tab">Show archived messages tab</string>
+    <string name="archived_messages_background">Archived messages background</string>
     <!-- Conversation groups -->
     <string name="add_group">Add group</string>
     <string name="new_group">New group</string>
     <string name="group_name">Group name</string>
     <string name="move_to_group">Move to group</string>
     <string name="remove_from_group">Remove from group</string>
-    <string name="rename_group">Rename group</string>
+    <string name="rename_group">Edit group</string>
     <string name="delete_group">Delete group</string>
     <string name="delete_group_confirmation">Delete the group \"%s\"? Its conversations return to Messages.</string>
     <string name="group_name_exists">A group with this name already exists</string>
+    <string name="background_color">Background color</string>
+    <string name="transparent">Transparent</string>
     <string name="no_conversations_in_group">No conversations in this group. From Messages, select conversations and choose Move to group.</string>
     <!-- Recycle bin -->
     <string name="restore">Restore</string>
@@ -113,6 +116,7 @@
     <string name="add_a_blocked_keyword">Add a blocked keyword</string>
     <string name="blocked_messages">Blocked messages</string>
     <string name="show_blocked_messages_tab">Show blocked messages tab</string>
+    <string name="blocked_messages_background">Blocked messages background</string>
     <string name="blocked">Blocked</string>
     <string name="blocked_messages_with_count">Blocked messages (%s)</string>
     <string name="no_blocked_messages">No blocked messages have been found</string>

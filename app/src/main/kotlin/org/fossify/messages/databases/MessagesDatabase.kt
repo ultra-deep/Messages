@@ -36,7 +36,7 @@ import org.fossify.messages.models.RecycleBinMessage
         BlockedMessage::class,
         ConversationGroup::class,
     ],
-    version = 14
+    version = 15
 )
 @TypeConverters(Converters::class)
 abstract class MessagesDatabase : RoomDatabase() {
@@ -81,6 +81,7 @@ abstract class MessagesDatabase : RoomDatabase() {
                             .addMigrations(MIGRATION_11_12)
                             .addMigrations(MIGRATION_12_13)
                             .addMigrations(MIGRATION_13_14)
+                            .addMigrations(MIGRATION_14_15)
                             .build()
                     }
                 }
@@ -219,6 +220,14 @@ abstract class MessagesDatabase : RoomDatabase() {
                         "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                         "`name` TEXT NOT NULL, " +
                         "`position` INTEGER NOT NULL)"
+                )
+            }
+        }
+
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE conversation_groups ADD COLUMN background_color INTEGER NOT NULL DEFAULT 0"
                 )
             }
         }

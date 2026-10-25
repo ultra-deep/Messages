@@ -1,10 +1,14 @@
 package org.fossify.messages.activities
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
+import android.view.View
+import android.widget.ImageView
 import androidx.activity.result.contract.ActivityResultContracts
 import org.fossify.commons.activities.ManageBlockedNumbersActivity
 import org.fossify.commons.dialogs.ChangeDateTimeFormatDialog
+import org.fossify.commons.dialogs.ColorPickerDialog
 import org.fossify.commons.dialogs.ConfirmationDialog
 import org.fossify.commons.dialogs.RadioGroupDialog
 import org.fossify.commons.dialogs.SecurityDialog
@@ -29,10 +33,13 @@ import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.helpers.isQPlus
 import org.fossify.commons.helpers.isTiramisuPlus
 import org.fossify.commons.models.RadioItem
+import org.fossify.commons.views.MyTextView
 import org.fossify.messages.R
 import org.fossify.messages.databinding.ActivitySettingsBinding
 import org.fossify.messages.dialogs.ExportMessagesDialog
 import org.fossify.messages.extensions.config
+import org.fossify.messages.extensions.showBackgroundColorPreview
+import org.fossify.messages.extensions.toBackgroundColorLabel
 import org.fossify.messages.extensions.emptyMessagesRecycleBin
 import org.fossify.messages.extensions.getUnreadBlockedMessageCount
 import org.fossify.messages.extensions.messagesDB
@@ -108,6 +115,7 @@ class SettingsActivity : SimpleActivity() {
         setupManageBlockedKeywords()
         setupShowBlockedMessagesTab()
         setupBlockedMessages()
+        setupBlockedMessagesBackground()
         setupChangeDateTimeFormat()
         setupFontSize()
         setupShowCharacterCounter()
@@ -118,6 +126,7 @@ class SettingsActivity : SimpleActivity() {
         setupGroupMessageAsMMS()
         setupShowArchivedMessagesTab()
         setupKeepConversationsArchived()
+        setupArchivedMessagesBackground()
         setupLockScreenVisibility()
         setupMMSFileSizeLimit()
         setupUseRecycleBin()
@@ -230,6 +239,53 @@ class SettingsActivity : SimpleActivity() {
         settingsShowBlockedMessagesTabHolder.setOnClickListener {
             settingsShowBlockedMessagesTab.toggle()
             config.showBlockedMessagesTab = settingsShowBlockedMessagesTab.isChecked
+        }
+    }
+
+    private fun setupBlockedMessagesBackground() {
+        bindBackgroundColorSetting(
+            color = config.blockedMessagesBackgroundColor,
+            valueView = binding.settingsBlockedMessagesBackground,
+            preview = binding.settingsBlockedMessagesBackgroundPreview,
+            holder = binding.settingsBlockedMessagesBackgroundHolder,
+        ) { pickedColor ->
+            config.blockedMessagesBackgroundColor = pickedColor
+            setupBlockedMessagesBackground()
+        }
+    }
+
+    private fun setupArchivedMessagesBackground() {
+        bindBackgroundColorSetting(
+            color = config.archivedMessagesBackgroundColor,
+            valueView = binding.settingsArchivedMessagesBackground,
+            preview = binding.settingsArchivedMessagesBackgroundPreview,
+            holder = binding.settingsArchivedMessagesBackgroundHolder,
+        ) { pickedColor ->
+            config.archivedMessagesBackgroundColor = pickedColor
+            setupArchivedMessagesBackground()
+        }
+    }
+
+    private fun bindBackgroundColorSetting(
+        color: Int,
+        valueView: MyTextView,
+        preview: ImageView,
+        holder: View,
+        onPicked: (Int) -> Unit,
+    ) {
+        valueView.text = color.toBackgroundColorLabel(this)
+        preview.showBackgroundColorPreview(color)
+        holder.setOnClickListener {
+            val initial = if (color == Color.TRANSPARENT) getProperPrimaryColor() else color
+            ColorPickerDialog(
+                activity = this,
+                color = initial,
+                addDefaultColorButton = true,
+            ) { wasPositivePressed, pickedColor ->
+                if (wasPositivePressed) {
+                    onPicked(pickedColor)
+                }
+            }
         }
     }
 

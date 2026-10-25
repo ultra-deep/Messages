@@ -1,6 +1,7 @@
 package org.fossify.messages.helpers
 
 import android.content.Context
+import android.graphics.Color
 import org.fossify.commons.helpers.BaseConfig
 import org.fossify.messages.extensions.getDefaultKeyboardHeight
 import org.fossify.messages.models.Conversation
@@ -161,4 +162,14 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean(SHOW_ARCHIVED_MESSAGES_TAB, true)
         set(showArchivedMessagesTab) = prefs.edit()
             .putBoolean(SHOW_ARCHIVED_MESSAGES_TAB, showArchivedMessagesTab).apply()
+
+    var blockedMessagesBackgroundColor: Int
+        get() = prefs.getInt(BLOCKED_MESSAGES_BACKGROUND_COLOR, Color.TRANSPARENT)
+        set(blockedMessagesBackgroundColor) = prefs.edit()
+            .putInt(BLOCKED_MESSAGES_BACKGROUND_COLOR, blockedMessagesBackgroundColor).apply()
+
+    var archivedMessagesBackgroundColor: Int
+        get() = prefs.getInt(ARCHIVED_MESSAGES_BACKGROUND_COLOR, Color.TRANSPARENT)
+        set(archivedMessagesBackgroundColor) = prefs.edit()
+            .putInt(ARCHIVED_MESSAGES_BACKGROUND_COLOR, archivedMessagesBackgroundColor).apply()
 }

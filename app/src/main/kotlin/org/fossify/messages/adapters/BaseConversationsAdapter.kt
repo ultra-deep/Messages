@@ -1,6 +1,7 @@
 package org.fossify.messages.adapters
 
 import android.annotation.SuppressLint
+import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Parcelable
 import android.util.TypedValue
@@ -44,6 +45,7 @@ abstract class BaseConversationsAdapter(
     RecyclerViewFastScroller.OnPopupTextUpdate {
     private var fontSize = activity.getTextSize()
     private var drafts = HashMap<Long, String>()
+    private var listBackgroundColor = Color.TRANSPARENT
 
     private var recyclerViewState: Parcelable? = null
 
@@ -66,6 +68,17 @@ abstract class BaseConversationsAdapter(
     fun updateFontSize() {
         fontSize = activity.getTextSize()
         notifyDataSetChanged()
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    fun updateListBackground(color: Int) {
+        if (listBackgroundColor == color) {
+            return
+        }
+        listBackgroundColor = color
+        if (itemCount > 0) {
+            notifyDataSetChanged()
+        }
     }
 
     fun updateConversations(
@@ -150,7 +163,8 @@ abstract class BaseConversationsAdapter(
             pinIndicator.beVisibleIf(
                 activity.config.pinnedConversations.contains(conversation.threadId.toString())
             )
-            pinIndicator.applyColorFilter(textColor)
+            val contentColor = contentTextColor()
+            pinIndicator.applyColorFilter(contentColor)
 
             conversationFrame.isSelected = selectedKeys.contains(conversation.hashCode())
 
@@ -188,7 +202,7 @@ abstract class BaseConversationsAdapter(
             conversationDate.setTypeface(customTypeface, style)
 
             arrayListOf(conversationAddress, conversationBodyShort, conversationDate).forEach {
-                it.setTextColor(textColor)
+                it.setTextColor(contentColor)
             }
 
             setupBadgeCount(unreadCountBadge, isUnread, conversation.unreadCount)
@@ -205,6 +219,14 @@ abstract class BaseConversationsAdapter(
                 placeholderName = conversation.title,
                 placeholderImage = placeholder
             )
+        }
+    }
+
+    private fun contentTextColor(): Int {
+        return if (listBackgroundColor == Color.TRANSPARENT) {
+            textColor
+        } else {
+            listBackgroundColor.getContrastColor()
         }
     }
 

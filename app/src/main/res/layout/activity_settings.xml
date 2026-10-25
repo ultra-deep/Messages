@@ -189,6 +189,40 @@
             </RelativeLayout>
 
             <RelativeLayout
+                android:id="@+id/settings_blocked_messages_background_holder"
+                style="@style/SettingsHolderTextViewStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <ImageView
+                    android:id="@+id/settings_blocked_messages_background_preview"
+                    android:layout_width="@dimen/medium_icon_size"
+                    android:layout_height="@dimen/medium_icon_size"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:importantForAccessibility="no" />
+
+                <org.fossify.commons.views.MyTextView
+                    android:id="@+id/settings_blocked_messages_background_label"
+                    style="@style/SettingsTextLabelStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:layout_toStartOf="@id/settings_blocked_messages_background_preview"
+                    android:text="@string/blocked_messages_background" />
+
+                <org.fossify.commons.views.MyTextView
+                    android:id="@+id/settings_blocked_messages_background"
+                    style="@style/SettingsTextValueStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/settings_blocked_messages_background_label"
+                    android:layout_alignParentStart="true"
+                    tools:text="@string/transparent" />
+
+            </RelativeLayout>
+
+            <RelativeLayout
                 android:id="@+id/settings_font_size_holder"
                 style="@style/SettingsHolderTextViewStyle"
                 android:layout_width="match_parent"
@@ -422,6 +456,40 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/keep_conversations_archived" />
+
+            </RelativeLayout>
+
+            <RelativeLayout
+                android:id="@+id/settings_archived_messages_background_holder"
+                style="@style/SettingsHolderTextViewStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <ImageView
+                    android:id="@+id/settings_archived_messages_background_preview"
+                    android:layout_width="@dimen/medium_icon_size"
+                    android:layout_height="@dimen/medium_icon_size"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:importantForAccessibility="no" />
+
+                <org.fossify.commons.views.MyTextView
+                    android:id="@+id/settings_archived_messages_background_label"
+                    style="@style/SettingsTextLabelStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:layout_toStartOf="@id/settings_archived_messages_background_preview"
+                    android:text="@string/archived_messages_background" />
+
+                <org.fossify.commons.views.MyTextView
+                    android:id="@+id/settings_archived_messages_background"
+                    style="@style/SettingsTextValueStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/settings_archived_messages_background_label"
+                    android:layout_alignParentStart="true"
+                    tools:text="@string/transparent" />
 
             </RelativeLayout>
 

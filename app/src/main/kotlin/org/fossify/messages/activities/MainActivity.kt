@@ -5,6 +5,7 @@ import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
+import android.graphics.Color
 import android.graphics.drawable.Icon
 import android.graphics.drawable.LayerDrawable
 import android.os.Bundle
@@ -175,6 +176,7 @@ class MainActivity : SimpleActivity() {
         binding.conversationsProgressBar.setIndicatorColor(properPrimaryColor)
         binding.conversationsProgressBar.trackColor = properPrimaryColor.adjustAlpha(LOWER_ALPHA)
         checkShortcut()
+        applyConversationListBackground()
         refreshBlockedTab()
         refreshArchivedTab()
         refreshConversationGroups()
@@ -355,6 +357,38 @@ class MainActivity : SimpleActivity() {
         binding.conversationsTabs.setBackgroundColor(getProperBackgroundColor())
     }
 
+    private fun conversationListBackgroundColor(): Int {
+        return when {
+            showingBlockedTab -> config.blockedMessagesBackgroundColor
+            showingArchivedTab -> config.archivedMessagesBackgroundColor
+            selectedGroupId != 0L -> {
+                conversationGroups.firstOrNull { it.id == selectedGroupId }?.backgroundColor
+                    ?: Color.TRANSPARENT
+            }
+            else -> Color.TRANSPARENT
+        }
+    }
+
+    private fun applyConversationListBackground() {
+        val color = conversationListBackgroundColor()
+        val resolved = if (color == Color.TRANSPARENT) {
+            getProperBackgroundColor()
+        } else {
+            color
+        }
+        binding.mainHolder.setBackgroundColor(resolved)
+        binding.conversationsFastscroller.setBackgroundColor(resolved)
+        binding.conversationsList.setBackgroundColor(resolved)
+        binding.conversationsTabs.setBackgroundColor(getProperBackgroundColor())
+        val contentColor = if (color == Color.TRANSPARENT) {
+            getProperTextColor()
+        } else {
+            color.getContrastColor()
+        }
+        binding.noConversationsPlaceholder.setTextColor(contentColor)
+        (binding.conversationsList.adapter as? BaseConversationsAdapter)?.updateListBackground(color)
+    }
+
     private fun showConversationTab(position: Int) {
         if (ignoreTabSelection) {
             return
@@ -376,6 +410,7 @@ class MainActivity : SimpleActivity() {
             }
         }
         refreshMenuItems()
+        applyConversationListBackground()
     }
 
     private fun showingInbox() = !showingBlockedTab && !showingArchivedTab && selectedGroupId == 0L
@@ -536,6 +571,7 @@ class MainActivity : SimpleActivity() {
 
         val currentAdapter = binding.conversationsList.adapter
         if (currentAdapter is BlockedConversationsAdapter) {
+            applyConversationListBackground()
             currentAdapter.updateConversations(conversations)
             return
         }
@@ -547,6 +583,7 @@ class MainActivity : SimpleActivity() {
             itemClick = { handleBlockedConversationClick(it) },
         ).apply {
             binding.conversationsList.adapter = this
+            applyConversationListBackground()
             updateConversations(conversations)
             if (areSystemAnimationsEnabled) {
                 binding.conversationsList.scheduleLayoutAnimation()
@@ -592,6 +629,7 @@ class MainActivity : SimpleActivity() {
 
         val currentAdapter = binding.conversationsList.adapter
         if (currentAdapter is ArchivedConversationsAdapter) {
+            applyConversationListBackground()
             currentAdapter.updateConversations(sortedConversations)
             return
         }
@@ -603,6 +641,7 @@ class MainActivity : SimpleActivity() {
             itemClick = { handleConversationClick(it) },
         ).apply {
             binding.conversationsList.adapter = this
+            applyConversationListBackground()
             updateConversations(sortedConversations)
             if (areSystemAnimationsEnabled) {
                 binding.conversationsList.scheduleLayoutAnimation()
@@ -821,6 +860,7 @@ class MainActivity : SimpleActivity() {
             binding.noConversationsPlaceholder2.beGone()
             binding.conversationsFastscroller.beGone()
             binding.conversationsList.adapter = null
+            applyConversationListBackground()
             return
         }
 
@@ -839,6 +879,7 @@ class MainActivity : SimpleActivity() {
 
         val currentAdapter = binding.conversationsList.adapter
         if (currentAdapter is GroupConversationsAdapter) {
+            applyConversationListBackground()
             currentAdapter.updateConversations(sortedConversations)
             return
         }
@@ -851,6 +892,7 @@ class MainActivity : SimpleActivity() {
             itemClick = { handleConversationClick(it) },
         ).apply {
             binding.conversationsList.adapter = this
+            applyConversationListBackground()
             updateConversations(sortedConversations)
             if (areSystemAnimationsEnabled) {
                 binding.conversationsList.scheduleLayoutAnimation()
@@ -865,9 +907,9 @@ class MainActivity : SimpleActivity() {
             isNameTaken = { name ->
                 conversationGroups.any { it.name.equals(name, ignoreCase = true) }
             },
-        ) { name ->
+        ) { name, backgroundColor ->
             ensureBackgroundThread {
-                val id = createConversationGroup(name)
+                val id = createConversationGroup(name, backgroundColor)
                 runOnUiThread {
                     if (isDestroyed || isFinishing) {
                         return@runOnUiThread
@@ -887,13 +929,14 @@ class MainActivity : SimpleActivity() {
         GroupNameDialog(
             activity = this,
             initialName = group.name,
+            initialBackgroundColor = group.backgroundColor,
             titleRes = R.string.rename_group,
             isNameTaken = { name ->
                 conversationGroups.any { it.id != group.id && it.name.equals(name, ignoreCase = true) }
             },
-        ) { name ->
+        ) { name, backgroundColor ->
             ensureBackgroundThread {
-                renameConversationGroup(group.id, name)
+                renameConversationGroup(group.id, name, backgroundColor)
                 runOnUiThread {
                     if (!isDestroyed && !isFinishing) {
                         refreshConversationGroups()
@@ -1179,6 +1222,7 @@ class MainActivity : SimpleActivity() {
 
         try {
             getOrCreateConversationsAdapter().apply {
+                applyConversationListBackground()
                 updateConversations(sortedConversations) {
                     if (!cached) {
                         showOrHidePlaceholder(currentList.isEmpty())

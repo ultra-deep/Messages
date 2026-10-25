@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="AppCompatResource,AlwaysShowAction">
+    <item
+        android:id="@+id/empty_blocked_messages"
+        android:icon="@drawable/ic_delete_vector"
+        android:title="@string/empty_blocked_messages"
+        app:showAsAction="never" />
+</menu>
