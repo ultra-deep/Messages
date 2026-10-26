@@ -15,7 +15,9 @@ import org.fossify.messages.extensions.getLatestMMS
 import org.fossify.messages.extensions.getMMS
 import org.fossify.messages.extensions.getNameFromAddress
 import org.fossify.messages.extensions.insertOrUpdateConversation
+import org.fossify.messages.extensions.invalidateBlockedConversationCache
 import org.fossify.messages.extensions.messagesDB
+import org.fossify.messages.extensions.noteBlockedUnreadChange
 import org.fossify.messages.extensions.saveBlockedMessage
 import org.fossify.messages.extensions.shouldUnarchive
 import org.fossify.messages.extensions.showReceivedMessageNotification
@@ -57,6 +59,8 @@ class MmsReceiver : MmsReceivedReceiver() {
                         context.deleteMessage(mms.id, isMMS = true)
                     }
                 } else {
+                    noteBlockedUnreadChange(1)
+                    invalidateBlockedConversationCache()
                     refreshBlockedMessages()
                 }
                 return@ensureBackgroundThread

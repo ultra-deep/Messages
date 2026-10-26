@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/group_number_pattern_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingTop="@dimen/small_margin"
+    android:paddingBottom="@dimen/small_margin">
+
+    <org.fossify.commons.views.MyTextView
+        android:id="@+id/group_number_pattern_value"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="@dimen/normal_text_size" />
+
+    <ImageView
+        android:id="@+id/group_number_pattern_remove"
+        android:layout_width="@dimen/medium_icon_size"
+        android:layout_height="@dimen/medium_icon_size"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/remove_number_pattern"
+        android:padding="@dimen/small_margin"
+        android:src="@drawable/ic_cross_vector" />
+
+</LinearLayout>

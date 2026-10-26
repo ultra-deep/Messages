@@ -6,4 +6,10 @@
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">@dimen/normal_margin</item>
     </style>
+
+    <style name="TextAppearance.Messages.TabBadge" parent="TextAppearance.MaterialComponents.Badge">
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="fontFamily">sans-serif</item>
+    </style>
 </resources>

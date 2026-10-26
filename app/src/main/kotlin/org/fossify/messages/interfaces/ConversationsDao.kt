@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import org.fossify.messages.models.Conversation
+import org.fossify.messages.models.ConversationBadgeRow
 import org.fossify.messages.models.ConversationWithSnippetOverride
 
 @Dao
@@ -45,6 +46,18 @@ interface ConversationsDao {
 
     @Query("SELECT * FROM conversations WHERE read = 0")
     fun getUnreadConversations(): List<Conversation>
+
+    @Query(
+        "SELECT COALESCE(SUM(CASE WHEN unread_count > 0 THEN unread_count WHEN read = 0 THEN 1 ELSE 0 END), 0) " +
+            "FROM conversations WHERE archived = 1"
+    )
+    fun getArchivedUnreadBadgeCount(): Long
+
+    @Query(
+        "SELECT thread_id, phone_number, read, unread_count, archived, group_id, ignore_number_pattern " +
+            "FROM conversations"
+    )
+    fun getBadgeRows(): List<ConversationBadgeRow>
 
     @Query("SELECT * FROM conversations WHERE title LIKE :text")
     fun getConversationsWithText(text: String): List<Conversation>

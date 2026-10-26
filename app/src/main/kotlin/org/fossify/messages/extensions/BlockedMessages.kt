@@ -14,6 +14,7 @@ import org.fossify.commons.extensions.getLongValue
 import org.fossify.commons.extensions.getStringValue
 import org.fossify.commons.extensions.queryCursor
 import org.fossify.commons.extensions.trimToComparableNumber
+import org.fossify.commons.models.BlockedNumber
 import org.fossify.commons.models.PhoneNumber
 import org.fossify.commons.models.SimpleContact
 import org.fossify.messages.R
@@ -38,6 +39,7 @@ private const val MMS_TEXT_PLAIN = "text/plain"
 private val blockedCacheLock = Any()
 private var cachedBlockedEntries: ArrayList<BlockedMessageEntry>? = null
 private var cachedBlockedConversations: ArrayList<Conversation>? = null
+private var cachedUnreadBlockedCount: Int? = null
 
 fun peekBlockedConversations(): ArrayList<Conversation>? {
     synchronized(blockedCacheLock) {
@@ -45,10 +47,36 @@ fun peekBlockedConversations(): ArrayList<Conversation>? {
     }
 }
 
+fun peekUnreadBlockedCount(): Int? {
+    synchronized(blockedCacheLock) {
+        return cachedUnreadBlockedCount
+    }
+}
+
+fun noteBlockedUnreadChange(delta: Int) {
+    if (delta == 0) {
+        return
+    }
+    synchronized(blockedCacheLock) {
+        val current = cachedUnreadBlockedCount
+        cachedUnreadBlockedCount = when {
+            current == null && delta > 0 -> delta
+            current == null -> null
+            else -> (current + delta).coerceAtLeast(0)
+        }
+    }
+}
+
 fun invalidateBlockedConversationCache() {
     synchronized(blockedCacheLock) {
         cachedBlockedEntries = null
         cachedBlockedConversations = null
+    }
+}
+
+private fun storeUnreadBlockedCount(count: Int) {
+    synchronized(blockedCacheLock) {
+        cachedUnreadBlockedCount = count
     }
 }
 
@@ -71,6 +99,7 @@ fun Context.saveBlockedMessage(
                 subscriptionId = subscriptionId,
             )
         )
+        noteBlockedUnreadChange(1)
         invalidateBlockedConversationCache()
         refreshBlockedMessages()
     } catch (_: Exception) {
@@ -101,6 +130,7 @@ fun Context.markBlockedMessagesRead(entries: List<BlockedMessageEntry>) {
         } catch (_: Exception) {
         }
     }
+    noteBlockedUnreadChange(-unread.size)
     invalidateBlockedConversationCache()
     refreshBlockedMessages()
 }
@@ -125,8 +155,15 @@ fun Context.markBlockedMessagesUnread(entries: List<BlockedMessageEntry>) {
         } catch (_: Exception) {
         }
     }
+    noteBlockedUnreadChange(readEntries.size)
     invalidateBlockedConversationCache()
     refreshBlockedMessages()
+}
+
+fun Context.countUnreadBlockedMessages(): Int {
+    val count = countLocalUnreadBlockedMessages() + countUnreadProviderBlockedMessages()
+    storeUnreadBlockedCount(count)
+    return count
 }
 
 fun Context.getBlockedMessageEntries(): ArrayList<BlockedMessageEntry> {
@@ -152,6 +189,7 @@ fun Context.reloadBlockedConversations(): ArrayList<Conversation> {
     synchronized(blockedCacheLock) {
         cachedBlockedEntries = entries
         cachedBlockedConversations = conversations
+        cachedUnreadBlockedCount = entries.count { !it.read }
     }
     return ArrayList(conversations)
 }
@@ -220,6 +258,7 @@ fun Context.deleteBlockedMessages(entries: List<BlockedMessageEntry>) {
     if (deletedProviderMessage) {
         refreshConversations()
     }
+    noteBlockedUnreadChange(-entries.count { !it.read })
     invalidateBlockedConversationCache()
     refreshBlockedMessages()
 }
@@ -245,6 +284,9 @@ fun Context.moveBlockedMessageToInbox(entry: BlockedMessageEntry) {
     }
 
     blockedMessagesDB.delete(entry.localId)
+    if (!entry.read) {
+        noteBlockedUnreadChange(-1)
+    }
     getConversations(threadId).firstOrNull()?.let { conversation ->
         insertOrUpdateConversation(conversation)
     }
@@ -347,13 +389,85 @@ private fun Context.loadProviderBlockedMessages(): List<BlockedMessageEntry> {
     return entries
 }
 
-private fun Context.loadMmsSenders(): Map<Long, String> {
+private fun Context.countLocalUnreadBlockedMessages(): Int {
+    return try {
+        blockedMessagesDB.getUnreadCount()
+    } catch (_: Exception) {
+        0
+    }
+}
+
+private fun Context.countUnreadProviderBlockedMessages(): Int {
+    val blockedNumbers = try {
+        getBlockedNumbers()
+    } catch (_: Exception) {
+        return 0
+    }
+    if (blockedNumbers.isEmpty()) {
+        return 0
+    }
+    return countUnreadBlockedSms(blockedNumbers) + countUnreadBlockedMms(blockedNumbers)
+}
+
+private fun Context.countUnreadBlockedSms(blockedNumbers: ArrayList<BlockedNumber>): Int {
+    var count = 0
+    queryCursor(
+        uri = Sms.CONTENT_URI,
+        projection = arrayOf(Sms.ADDRESS),
+        selection = "${Sms.TYPE} = ${Sms.MESSAGE_TYPE_INBOX} AND ${Sms.READ} = 0",
+        selectionArgs = null,
+        sortOrder = null,
+        showErrors = false,
+    ) { cursor ->
+        val address = cursor.getStringValue(Sms.ADDRESS).orEmpty()
+        if (address.isNotEmpty() && isBlockedSender(address, blockedNumbers)) {
+            count++
+        }
+    }
+    return count
+}
+
+private fun Context.countUnreadBlockedMms(blockedNumbers: ArrayList<BlockedNumber>): Int {
+    val unreadIds = ArrayList<Long>()
+    queryCursor(
+        uri = Mms.CONTENT_URI,
+        projection = arrayOf(Mms._ID),
+        selection = "${Mms.MESSAGE_BOX} = ${Mms.MESSAGE_BOX_INBOX} AND ${Mms.READ} = 0",
+        selectionArgs = null,
+        sortOrder = null,
+        showErrors = false,
+    ) { cursor ->
+        unreadIds.add(cursor.getLongValue(Mms._ID))
+    }
+    if (unreadIds.isEmpty()) {
+        return 0
+    }
+    val senders = loadMmsSenders(unreadIds)
+    var count = 0
+    unreadIds.forEach { messageId ->
+        val address = senders[messageId] ?: getMMSSender(messageId)
+        if (address.isNotEmpty() && isBlockedSender(address, blockedNumbers)) {
+            count++
+        }
+    }
+    return count
+}
+
+private fun Context.loadMmsSenders(messageIds: Collection<Long>? = null): Map<Long, String> {
+    if (messageIds != null && messageIds.isEmpty()) {
+        return emptyMap()
+    }
     val senders = HashMap<Long, String>()
+    val selection = if (messageIds == null) {
+        "${Mms.Addr.TYPE} = ?"
+    } else {
+        "${Mms.Addr.TYPE} = ? AND ${Mms.Addr.MSG_ID} IN (${messageIds.joinToString(",")})"
+    }
     try {
         queryCursor(
             uri = Uri.parse(MMS_ADDRESS_URI),
             projection = arrayOf(Mms.Addr.MSG_ID, Mms.Addr.ADDRESS),
-            selection = "${Mms.Addr.TYPE} = ?",
+            selection = selection,
             selectionArgs = arrayOf(PduHeaders.FROM.toString()),
             sortOrder = null,
             showErrors = false,

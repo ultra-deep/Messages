@@ -106,6 +106,7 @@
         android:background="@drawable/circle_background"
         android:gravity="center"
         android:textSize="@dimen/list_tertiary_text_size"
+        android:textStyle="bold"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="@id/conversation_body_short"
         app:layout_constraintEnd_toEndOf="parent"

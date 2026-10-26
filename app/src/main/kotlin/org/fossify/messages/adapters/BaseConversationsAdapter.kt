@@ -46,6 +46,7 @@ abstract class BaseConversationsAdapter(
     private var fontSize = activity.getTextSize()
     private var drafts = HashMap<Long, String>()
     private var listBackgroundColor = Color.TRANSPARENT
+    private var unreadBadgeColor: Int? = null
 
     private var recyclerViewState: Parcelable? = null
 
@@ -76,6 +77,17 @@ abstract class BaseConversationsAdapter(
             return
         }
         listBackgroundColor = color
+        if (itemCount > 0) {
+            notifyDataSetChanged()
+        }
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    fun updateUnreadBadgeColor(color: Int) {
+        if (unreadBadgeColor == color) {
+            return
+        }
+        unreadBadgeColor = color
         if (itemCount > 0) {
             notifyDataSetChanged()
         }
@@ -239,8 +251,10 @@ abstract class BaseConversationsAdapter(
                     count == 0 -> ""
                     else -> count.toString()
                 }
-                setTextColor(properPrimaryColor.getContrastColor())
-                background?.applyColorFilter(properPrimaryColor)
+                val badgeColor = unreadBadgeColor ?: properPrimaryColor
+                setTypeface(FontHelper.getTypeface(activity), Typeface.BOLD)
+                setTextColor(badgeColor.getContrastColor())
+                background?.applyColorFilter(badgeColor)
             }
         }
     }

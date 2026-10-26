@@ -15,7 +15,9 @@ import org.fossify.messages.extensions.getNotificationBitmap
 import org.fossify.messages.extensions.getThreadId
 import org.fossify.messages.extensions.insertNewSMS
 import org.fossify.messages.extensions.insertOrUpdateConversation
+import org.fossify.messages.extensions.invalidateBlockedConversationCache
 import org.fossify.messages.extensions.messagesDB
+import org.fossify.messages.extensions.noteBlockedUnreadChange
 import org.fossify.messages.extensions.saveBlockedMessage
 import org.fossify.messages.extensions.shouldUnarchive
 import org.fossify.messages.extensions.showReceivedMessageNotification
@@ -84,7 +86,7 @@ class SmsReceiver : BroadcastReceiver() {
     ) {
         if (context.isBlockedSender(address)) {
             val threadId = context.getThreadId(address)
-            context.insertNewSMS(
+            val messageId = context.insertNewSMS(
                 address = address,
                 subject = subject,
                 body = body,
@@ -94,6 +96,10 @@ class SmsReceiver : BroadcastReceiver() {
                 type = Telephony.Sms.MESSAGE_TYPE_INBOX,
                 subscriptionId = subscriptionId,
             )
+            if (messageId != 0L) {
+                noteBlockedUnreadChange(1)
+            }
+            invalidateBlockedConversationCache()
             refreshBlockedMessages()
         } else {
             context.saveBlockedMessage(
