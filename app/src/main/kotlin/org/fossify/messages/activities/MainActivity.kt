@@ -94,8 +94,10 @@ import org.fossify.messages.extensions.getUnreadCountsByThread
 import org.fossify.messages.extensions.unreadBlockedBadgeText
 import org.fossify.messages.extensions.insertOrUpdateConversation
 import org.fossify.messages.extensions.messagesDB
+import org.fossify.messages.helpers.ConversationTab
 import org.fossify.messages.helpers.excludingPatternGroups
 import org.fossify.messages.helpers.patternGroupCopies
+import org.fossify.messages.helpers.resolveConversationTabs
 import org.fossify.messages.helpers.IS_BLOCKED_CONVERSATION
 import org.fossify.messages.helpers.SEARCHED_MESSAGE_ID
 import org.fossify.messages.helpers.SHOW_BLOCKED_TAB
@@ -135,6 +137,7 @@ class MainActivity : SimpleActivity() {
     private var groupRefreshGeneration = 0
     private var selectedGroupId = 0L
     private var conversationGroups = emptyList<ConversationGroup>()
+    private var visibleTabs: List<ConversationTab> = emptyList()
     private var groupedConversations = emptyList<Conversation>()
     private var inboxConversations = ArrayList<Conversation>()
     private var archivedConversations = ArrayList<Conversation>()
@@ -301,40 +304,30 @@ class MainActivity : SimpleActivity() {
         applyConversationTabVisibility()
     }
 
-    private fun blockedTabIndex(): Int {
-        if (!config.showBlockedMessagesTab) {
-            return -1
-        }
-        return 1
+    private fun blockedTabIndex(): Int = visibleTabs.indexOf(ConversationTab.Blocked)
+
+    private fun archivedTabIndex(): Int = visibleTabs.indexOf(ConversationTab.Archived)
+
+    private fun messagesTabIndex(): Int {
+        val index = visibleTabs.indexOf(ConversationTab.Messages)
+        return if (index >= 0) index else 0
     }
 
-    private fun archivedTabIndex(): Int {
-        if (!config.showArchivedMessagesTab) {
-            return -1
+    private fun groupTabIndex(groupId: Long): Int {
+        return visibleTabs.indexOfFirst { tab ->
+            tab is ConversationTab.Group && tab.id == groupId
         }
-        return if (config.showBlockedMessagesTab) 2 else 1
-    }
-
-    private fun groupTabOffset(): Int {
-        var offset = 1
-        if (config.showBlockedMessagesTab) {
-            offset++
-        }
-        if (config.showArchivedMessagesTab) {
-            offset++
-        }
-        return offset
     }
 
     private fun applyConversationTabVisibility() {
         val showBlocked = config.showBlockedMessagesTab
         val showArchived = config.showArchivedMessagesTab
-        if (
-            showBlocked == appliedShowBlockedTab &&
+        val visibilityUnchanged = showBlocked == appliedShowBlockedTab &&
             showArchived == appliedShowArchivedTab &&
             binding.conversationsTabs.tabCount > 0
-        ) {
+        if (visibilityUnchanged) {
             openBlockedDespiteHiddenTab = false
+            rebuildConversationTabs(conversationGroups)
             return
         }
 
@@ -355,30 +348,71 @@ class MainActivity : SimpleActivity() {
             showingArchivedTab = false
         }
 
+        rebuildConversationTabs(conversationGroups)
+        if (leaveBlockedView || leaveArchivedView) {
+            showConversationTab(messagesTabIndex())
+        }
+    }
+
+    private fun rebuildConversationTabs(groups: List<ConversationGroup>) {
+        val nextTabs = resolveConversationTabs(
+            stored = config.conversationTabOrder,
+            groupIdsInOrder = groups.map { it.id },
+            showBlocked = config.showBlockedMessagesTab,
+            showArchived = config.showArchivedMessagesTab,
+            includeHidden = false,
+        )
+        val nextSignature = tabSignature(nextTabs, groups)
+        val currentSignature = tabSignature(visibleTabs, conversationGroups)
+        conversationGroups = groups
+        if (
+            nextSignature == currentSignature &&
+            binding.conversationsTabs.tabCount == nextTabs.size
+        ) {
+            visibleTabs = nextTabs
+            return
+        }
+
+        visibleTabs = nextTabs
+        pendingTabBadges.clear()
         ignoreTabSelection = true
         try {
             val tabs = binding.conversationsTabs
             tabs.removeAllTabs()
-            tabs.addTab(tabs.newTab().setText(R.string.messages), false)
-            if (showBlocked) {
-                tabs.addTab(tabs.newTab().setText(R.string.blocked), false)
-            }
-            if (showArchived) {
-                tabs.addTab(tabs.newTab().setText(R.string.archived_conversations), false)
-            }
-            conversationGroups.forEach { group ->
-                tabs.addTab(tabs.newTab().setText(group.name), false)
+            nextTabs.forEach { tab ->
+                tabs.addTab(tabs.newTab().setText(tabLabel(tab, groups)), false)
             }
             updateTabMode()
             styleConversationTabs()
             restoreSelectedTab()
             reapplyKnownTabBadges()
+            applyConversationListBackground()
         } finally {
             ignoreTabSelection = false
         }
+    }
 
-        if (leaveBlockedView || leaveArchivedView) {
-            showConversationTab(0)
+    private fun tabLabel(tab: ConversationTab, groups: List<ConversationGroup>): String {
+        return when (tab) {
+            ConversationTab.Messages -> getString(R.string.messages)
+            ConversationTab.Blocked -> getString(R.string.blocked)
+            ConversationTab.Archived -> getString(R.string.archived_conversations)
+            is ConversationTab.Group -> groups.firstOrNull { it.id == tab.id }?.name.orEmpty()
+        }
+    }
+
+    private fun tabSignature(
+        tabs: List<ConversationTab>,
+        groups: List<ConversationGroup>,
+    ): List<String> {
+        return tabs.map { tab ->
+            when (tab) {
+                is ConversationTab.Group -> {
+                    val name = groups.firstOrNull { it.id == tab.id }?.name.orEmpty()
+                    "${tab.key}:$name"
+                }
+                else -> tab.key
+            }
         }
     }
 
@@ -492,11 +526,7 @@ class MainActivity : SimpleActivity() {
     private fun showingInbox() = !showingBlockedTab && !showingArchivedTab && selectedGroupId == 0L
 
     private fun groupIdForTab(position: Int): Long {
-        val offset = groupTabOffset()
-        if (position < offset) {
-            return 0L
-        }
-        return conversationGroups.getOrNull(position - offset)?.id ?: 0L
+        return (visibleTabs.getOrNull(position) as? ConversationTab.Group)?.id ?: 0L
     }
 
     private fun showBlockedTab() {
@@ -914,7 +944,7 @@ class MainActivity : SimpleActivity() {
     }
 
     private fun updateMessagesTabBadge() {
-        applyTabBadge(0, inboxUnreadCount, Color.RED)
+        applyTabBadge(messagesTabIndex(), inboxUnreadCount, Color.RED)
     }
 
     private fun groupTabBadgeColor(group: ConversationGroup): Int {
@@ -1023,9 +1053,12 @@ class MainActivity : SimpleActivity() {
         if (knownGroupUnreadCounts.isEmpty()) {
             return
         }
-        conversationGroups.forEachIndexed { index, group ->
-            val count = knownGroupUnreadCounts[group.id] ?: return@forEachIndexed
-            applyTabBadge(groupTabOffset() + index, count, groupTabBadgeColor(group))
+        conversationGroups.forEach { group ->
+            val count = knownGroupUnreadCounts[group.id] ?: return@forEach
+            val index = groupTabIndex(group.id)
+            if (index >= 0) {
+                applyTabBadge(index, count, groupTabBadgeColor(group))
+            }
         }
     }
 
@@ -1143,38 +1176,17 @@ class MainActivity : SimpleActivity() {
         unreadCounts: Map<Long, Int>,
         clearEmptyBadges: Boolean = true,
     ) {
-        val tabs = binding.conversationsTabs
-        val unchanged = conversationGroups.size == groups.size &&
-            conversationGroups.zip(groups).all { (current, updated) ->
-                current.id == updated.id && current.name == updated.name
-            }
-        conversationGroups = groups
         if (clearEmptyBadges) {
             knownGroupUnreadCounts = unreadCounts
         }
-        if (!unchanged) {
-            ignoreTabSelection = true
-            try {
-                while (tabs.tabCount > groupTabOffset()) {
-                    tabs.removeTabAt(tabs.tabCount - 1)
-                }
-                groups.forEach { group ->
-                    tabs.addTab(tabs.newTab().setText(group.name), false)
-                }
-                updateTabMode()
-                styleConversationTabs()
-                restoreSelectedTab()
-                updateMessagesTabBadge()
-                knownBlockedUnreadCount?.let { applyTabBadge(blockedTabIndex(), it) }
-                knownArchivedUnreadCount?.let { applyTabBadge(archivedTabIndex(), it) }
-            } finally {
-                ignoreTabSelection = false
-            }
-        }
-        groups.forEachIndexed { index, group ->
+        rebuildConversationTabs(groups)
+        groups.forEach { group ->
             val count = unreadCounts[group.id] ?: 0
             if (count > 0 || clearEmptyBadges) {
-                applyTabBadge(groupTabOffset() + index, count, groupTabBadgeColor(group))
+                val index = groupTabIndex(group.id)
+                if (index >= 0) {
+                    applyTabBadge(index, count, groupTabBadgeColor(group))
+                }
             }
         }
         if (clearEmptyBadges) {
@@ -1186,7 +1198,7 @@ class MainActivity : SimpleActivity() {
     }
 
     private fun updateTabMode() {
-        val scrollable = binding.conversationsTabs.tabCount > groupTabOffset()
+        val scrollable = visibleTabs.any { it is ConversationTab.Group }
         binding.conversationsTabs.tabMode = if (scrollable) {
             TabLayout.MODE_SCROLLABLE
         } else {
@@ -1221,12 +1233,14 @@ class MainActivity : SimpleActivity() {
         if (showingArchivedTab && archivedIndex >= 0) {
             return archivedIndex
         }
-        val groupIndex = conversationGroups.indexOfFirst { it.id == selectedGroupId }
-        if (selectedGroupId != 0L && groupIndex >= 0) {
-            return groupTabOffset() + groupIndex
+        if (selectedGroupId != 0L) {
+            val groupIndex = groupTabIndex(selectedGroupId)
+            if (groupIndex >= 0) {
+                return groupIndex
+            }
         }
         selectedGroupId = 0L
-        return 0
+        return messagesTabIndex()
     }
 
     private fun showGroupConversations(conversations: ArrayList<Conversation>) {
@@ -1341,7 +1355,7 @@ class MainActivity : SimpleActivity() {
                     selectedGroupId = 0L
                     showingBlockedTab = false
                     showingArchivedTab = false
-                    selectConversationTab(0)
+                    selectConversationTab(messagesTabIndex())
                     initMessenger()
                 }
             }

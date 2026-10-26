@@ -114,6 +114,7 @@ class SettingsActivity : SimpleActivity() {
         setupManageBlockedNumbers()
         setupManageBlockedKeywords()
         setupShowBlockedMessagesTab()
+        setupTabOrder()
         setupBlockedMessages()
         setupBlockedMessagesBackground()
         setupChangeDateTimeFormat()
@@ -239,6 +240,12 @@ class SettingsActivity : SimpleActivity() {
         settingsShowBlockedMessagesTabHolder.setOnClickListener {
             settingsShowBlockedMessagesTab.toggle()
             config.showBlockedMessagesTab = settingsShowBlockedMessagesTab.isChecked
+        }
+    }
+
+    private fun setupTabOrder() = binding.apply {
+        settingsTabOrderHolder.setOnClickListener {
+            startActivity(Intent(this@SettingsActivity, TabOrderActivity::class.java))
         }
     }
 

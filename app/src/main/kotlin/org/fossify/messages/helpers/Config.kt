@@ -163,6 +163,11 @@ class Config(context: Context) : BaseConfig(context) {
         set(showArchivedMessagesTab) = prefs.edit()
             .putBoolean(SHOW_ARCHIVED_MESSAGES_TAB, showArchivedMessagesTab).apply()
 
+    var conversationTabOrder: String
+        get() = prefs.getString(CONVERSATION_TAB_ORDER, "")!!
+        set(conversationTabOrder) = prefs.edit()
+            .putString(CONVERSATION_TAB_ORDER, conversationTabOrder).apply()
+
     var blockedMessagesBackgroundColor: Int
         get() = prefs.getInt(BLOCKED_MESSAGES_BACKGROUND_COLOR, Color.TRANSPARENT)
         set(blockedMessagesBackgroundColor) = prefs.edit()

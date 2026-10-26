@@ -146,6 +146,13 @@
             android:parentActivityName=".activities.SettingsActivity" />
 
         <activity
+            android:name=".activities.TabOrderActivity"
+            android:configChanges="orientation"
+            android:exported="false"
+            android:label="@string/tab_order"
+            android:parentActivityName=".activities.SettingsActivity" />
+
+        <activity
             android:name=".activities.BlockedMessagesActivity"
             android:configChanges="orientation"
             android:exported="false"

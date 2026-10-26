@@ -79,6 +79,10 @@
     <string name="empty_archive_confirmation">Are you sure you want to empty the archive? All archived conversations will be permanently lost.</string>
     <string name="keep_conversations_archived">Keep conversations archived</string>
     <string name="show_archived_messages_tab">Show archived messages tab</string>
+    <string name="tab_order">Tab order</string>
+    <string name="tab_order_description">Drag to rearrange Messages, Blocked, Archive, and group tabs.</string>
+    <string name="tab_hidden">Not shown on the main screen</string>
+    <string name="reorder_tab">Drag to reorder</string>
     <string name="archived_messages_background">Archived messages background</string>
     <!-- Conversation groups -->
     <string name="add_group">Add group</string>
