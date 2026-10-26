@@ -9,16 +9,26 @@ import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.models.RadioItem
 import org.fossify.messages.R
 import org.fossify.messages.dialogs.GroupNameDialog
+import org.fossify.messages.helpers.matchingPatternGroup
+import org.fossify.messages.helpers.matchesNumberPattern
+import org.fossify.messages.helpers.normalizeNumberPatterns
+import org.fossify.messages.helpers.numberPatternsOf
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.models.ConversationGroup
+import org.fossify.messages.models.ConversationGroupForm
 
 private const val NEW_GROUP_ITEM_ID = -1
 
-fun Context.createConversationGroup(
-    name: String,
-    backgroundColor: Int = Color.TRANSPARENT,
-): Long {
-    val trimmed = name.trim()
+data class GroupMessageAlert(
+    val show: Boolean,
+    val sound: Boolean,
+    val vibration: Boolean,
+)
+
+private val defaultGroupMessageAlert = GroupMessageAlert(show = true, sound = true, vibration = true)
+
+fun Context.createConversationGroup(form: ConversationGroupForm): Long {
+    val trimmed = form.name.trim()
     if (trimmed.isEmpty()) {
         return 0L
     }
@@ -29,13 +39,80 @@ fun Context.createConversationGroup(
         ConversationGroup(
             name = trimmed,
             position = conversationGroupsDB.nextPosition(),
-            backgroundColor = backgroundColor,
+            backgroundColor = form.backgroundColor,
+            showNotification = form.showNotification,
+            notificationSound = form.notificationSound,
+            notificationVibration = form.notificationVibration,
+            numberPatterns = normalizeNumberPatterns(form.numberPatterns),
         )
     )
 }
 
-fun Context.renameConversationGroup(groupId: Long, name: String, backgroundColor: Int) {
-    conversationGroupsDB.update(groupId, name.trim(), backgroundColor)
+fun Context.renameConversationGroup(groupId: Long, form: ConversationGroupForm) {
+    conversationGroupsDB.update(
+        id = groupId,
+        name = form.name.trim(),
+        backgroundColor = form.backgroundColor,
+        showNotification = form.showNotification,
+        notificationSound = form.notificationSound,
+        notificationVibration = form.notificationVibration,
+        numberPatterns = normalizeNumberPatterns(form.numberPatterns),
+    )
+}
+
+fun Context.groupMessageAlert(threadId: Long, address: String): GroupMessageAlert {
+    return try {
+        val groups = conversationGroupsDB.getAll()
+        val conversation = conversationsDB.getConversationWithThreadId(threadId)
+        val explicitGroup = if (conversation != null && conversation.groupId != 0L) {
+            groups.find { it.id == conversation.groupId }
+        } else {
+            null
+        }
+        val patternBlocked = conversation?.isArchived == true || conversation?.ignoreNumberPattern == true
+        val group = explicitGroup ?: if (patternBlocked) {
+            null
+        } else {
+            groups.firstOrNull { candidate ->
+                matchesGroupPattern(candidate, address) ||
+                    (conversation != null && matchesGroupPattern(candidate, conversation.phoneNumber))
+            }
+        }
+        if (group == null) {
+            defaultGroupMessageAlert
+        } else {
+            GroupMessageAlert(
+                show = group.showNotification,
+                sound = group.notificationSound,
+                vibration = group.notificationVibration,
+            )
+        }
+    } catch (_: Exception) {
+        defaultGroupMessageAlert
+    }
+}
+
+fun Context.conversationTabBackgroundColor(threadId: Long): Int {
+    val conversation = conversationsDB.getConversationWithThreadId(threadId) ?: return Color.TRANSPARENT
+    val groups = conversationGroupsDB.getAll()
+    val group = if (conversation.groupId != 0L) {
+        groups.find { it.id == conversation.groupId }
+    } else {
+        matchingPatternGroup(
+            groups = groups,
+            phoneNumber = conversation.phoneNumber,
+            groupId = conversation.groupId,
+            isArchived = conversation.isArchived,
+            ignoreNumberPattern = conversation.ignoreNumberPattern,
+        )
+    }
+    return group?.backgroundColor ?: Color.TRANSPARENT
+}
+
+private fun matchesGroupPattern(group: ConversationGroup, number: String): Boolean {
+    return numberPatternsOf(group.numberPatterns).any { pattern ->
+        matchesNumberPattern(number, pattern)
+    }
 }
 
 fun Context.deleteConversationGroup(groupId: Long) {
@@ -57,9 +134,23 @@ fun Context.moveConversationsToGroup(threadIds: Collection<Long>, groupId: Long)
     }
 }
 
-fun Context.removeConversationsFromGroup(threadIds: Collection<Long>) {
+fun Context.removeConversationsFromGroup(threadIds: Collection<Long>, fromGroupId: Long = 0L) {
+    val sourcePatterns = if (fromGroupId == 0L) {
+        emptyList()
+    } else {
+        val source = conversationGroupsDB.getAll().find { it.id == fromGroupId }
+        numberPatternsOf(source?.numberPatterns.orEmpty())
+    }
     threadIds.forEach { threadId ->
-        conversationsDB.removeFromGroup(threadId)
+        val conversation = conversationsDB.getConversationWithThreadId(threadId) ?: return@forEach
+        val matchedBySource = sourcePatterns.any { pattern ->
+            matchesNumberPattern(conversation.phoneNumber, pattern)
+        }
+        if (conversation.groupId == 0L || matchedBySource) {
+            conversationsDB.removeFromGroupAndIgnorePattern(threadId)
+        } else {
+            conversationsDB.removeFromGroup(threadId)
+        }
     }
 }
 
@@ -114,9 +205,9 @@ private fun Activity.promptCreateGroupAndMove(
         isNameTaken = { name ->
             existingGroups.any { it.name.equals(name, ignoreCase = true) }
         },
-    ) { name, backgroundColor ->
+    ) { form ->
         ensureBackgroundThread {
-            val groupId = createConversationGroup(name, backgroundColor)
+            val groupId = createConversationGroup(form)
             if (groupId == 0L) {
                 runOnUiThread { toast(R.string.group_name_exists) }
                 return@ensureBackgroundThread

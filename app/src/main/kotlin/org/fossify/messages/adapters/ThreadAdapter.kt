@@ -37,6 +37,7 @@ import org.fossify.commons.extensions.copyToClipboard
 import org.fossify.commons.extensions.formatDateOrTime
 import org.fossify.commons.extensions.getContrastColor
 import org.fossify.commons.extensions.getProperPrimaryColor
+import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.getTextSize
 import org.fossify.commons.extensions.getTimeFormat
 import org.fossify.commons.extensions.shareTextIntent
@@ -100,6 +101,7 @@ class ThreadAdapter(
     val deleteMessages: (messages: List<Message>, toRecycleBin: Boolean, fromRecycleBin: Boolean) -> Unit
 ) : MyRecyclerViewListAdapter<ThreadItem>(activity, recyclerView, ThreadItemDiffCallback(), itemClick) {
     private var fontSize = activity.getTextSize()
+    private var metaTextColor = activity.getProperTextColor()
 
     @SuppressLint("MissingPermission")
     private val hasMultipleSIMCards = (activity.subscriptionManagerCompat().activeSubscriptionInfoList?.size ?: 0) > 1
@@ -613,14 +615,14 @@ class ThreadAdapter(
                 )
                 setTextSize(TypedValue.COMPLEX_UNIT_PX, fontSize)
             }
-            threadDateTime.setTextColor(textColor)
+            threadDateTime.setTextColor(metaTextColor)
 
             threadSimIcon.beVisibleIf(hasMultipleSIMCards)
             threadSimNumber.beVisibleIf(hasMultipleSIMCards)
             if (hasMultipleSIMCards) {
                 threadSimNumber.text = dateTime.simID
-                threadSimNumber.setTextColor(textColor.getContrastColor())
-                threadSimIcon.applyColorFilter(textColor)
+                threadSimNumber.setTextColor(metaTextColor.getContrastColor())
+                threadSimIcon.applyColorFilter(metaTextColor)
             }
         }
     }
@@ -628,7 +630,7 @@ class ThreadAdapter(
     private fun setupThreadSuccess(view: View, isDelivered: Boolean) {
         ItemThreadSuccessBinding.bind(view).apply {
             threadSuccess.setImageResource(if (isDelivered) R.drawable.ic_check_double_vector else org.fossify.commons.R.drawable.ic_check_vector)
-            threadSuccess.applyColorFilter(textColor)
+            threadSuccess.applyColorFilter(metaTextColor)
         }
     }
 
@@ -640,7 +642,23 @@ class ThreadAdapter(
     private fun setupThreadSending(view: View) {
         ItemThreadSendingBinding.bind(view).threadSending.apply {
             setTextSize(TypedValue.COMPLEX_UNIT_PX, fontSize)
-            setTextColor(textColor)
+            setTextColor(metaTextColor)
+        }
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    fun updateConversationBackground(backgroundColor: Int) {
+        val nextColor = if (backgroundColor == Color.TRANSPARENT) {
+            activity.getProperTextColor()
+        } else {
+            backgroundColor.getContrastColor()
+        }
+        if (metaTextColor == nextColor) {
+            return
+        }
+        metaTextColor = nextColor
+        if (itemCount > 0) {
+            notifyDataSetChanged()
         }
     }
 

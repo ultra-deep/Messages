@@ -61,11 +61,17 @@ interface ConversationsDao {
     @Query("UPDATE conversations SET archived = 0 WHERE thread_id = :threadId")
     fun unarchive(threadId: Long)
 
-    @Query("UPDATE conversations SET group_id = :groupId, archived = 0 WHERE thread_id = :threadId")
+    @Query(
+        "UPDATE conversations SET group_id = :groupId, archived = 0, " +
+            "ignore_number_pattern = 0 WHERE thread_id = :threadId"
+    )
     fun moveToGroup(threadId: Long, groupId: Long)
 
     @Query("UPDATE conversations SET group_id = 0 WHERE thread_id = :threadId")
     fun removeFromGroup(threadId: Long)
+
+    @Query("UPDATE conversations SET group_id = 0, ignore_number_pattern = 1 WHERE thread_id = :threadId")
+    fun removeFromGroupAndIgnorePattern(threadId: Long)
 
     @Query("UPDATE conversations SET group_id = 0 WHERE group_id = :groupId")
     fun clearGroup(groupId: Long)

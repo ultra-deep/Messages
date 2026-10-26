@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import androidx.core.app.RemoteInput
+import org.fossify.commons.extensions.notificationManager
 import org.fossify.commons.extensions.showErrorToast
 import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.helpers.ensureBackgroundThread
@@ -55,7 +56,12 @@ class DirectReplyReceiver : BroadcastReceiver() {
 
                 val photoUri = SimpleContactsHelper(context).getPhotoUriFromPhoneNumber(address)
                 val bitmap = context.getNotificationBitmap(photoUri)
+                val alert = context.groupMessageAlert(threadId, address)
                 Handler(Looper.getMainLooper()).post {
+                    if (!alert.show) {
+                        context.notificationManager.cancel(threadId.hashCode())
+                        return@post
+                    }
                     context.notificationHelper.showMessageNotification(
                         messageId = messageId,
                         isMms = false,
@@ -64,7 +70,9 @@ class DirectReplyReceiver : BroadcastReceiver() {
                         threadId = threadId,
                         bitmap = bitmap,
                         sender = null,
-                        alertOnlyOnce = true
+                        alertOnlyOnce = true,
+                        playSound = alert.sound,
+                        vibrate = alert.vibration,
                     )
                 }
 

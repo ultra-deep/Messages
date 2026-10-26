@@ -43,14 +43,24 @@ class NotificationHelper(private val context: Context) {
         threadId: Long,
         bitmap: Bitmap?,
         sender: String?,
-        alertOnlyOnce: Boolean = false
+        alertOnlyOnce: Boolean = false,
+        playSound: Boolean = true,
+        vibrate: Boolean = true,
     ) {
         val hasCustomNotifications =
             context.config.customNotifications.contains(threadId.toString())
-        val notificationChannelId =
-            if (hasCustomNotifications) threadId.toString() else NOTIFICATION_CHANNEL_ID
+        val notificationChannelId = if (hasCustomNotifications) {
+            threadId.toString()
+        } else {
+            receivedSmsChannelId(playSound, vibrate)
+        }
         if (!hasCustomNotifications) {
-            createChannel(notificationChannelId, context.getString(R.string.channel_received_sms))
+            createChannel(
+                id = notificationChannelId,
+                name = context.getString(receivedSmsChannelName(playSound, vibrate)),
+                playSound = playSound,
+                vibrate = vibrate,
+            )
         }
 
         val notificationId = threadId.hashCode()
@@ -136,11 +146,22 @@ class NotificationHelper(private val context: Context) {
             setSmallIcon(R.drawable.ic_messenger)
             setContentIntent(contentPendingIntent)
             priority = NotificationCompat.PRIORITY_MAX
-            setDefaults(Notification.DEFAULT_LIGHTS)
             setCategory(Notification.CATEGORY_MESSAGE)
             setAutoCancel(true)
             setOnlyAlertOnce(alertOnlyOnce)
-            setSound(soundUri, AudioManager.STREAM_NOTIFICATION)
+            val alertSound = hasCustomNotifications || playSound
+            val alertVibration = hasCustomNotifications || vibrate
+            if (alertVibration) {
+                setDefaults(Notification.DEFAULT_LIGHTS or Notification.DEFAULT_VIBRATE)
+            } else {
+                setDefaults(Notification.DEFAULT_LIGHTS)
+                setVibrate(longArrayOf(0L))
+            }
+            if (alertSound) {
+                setSound(soundUri, AudioManager.STREAM_NOTIFICATION)
+            } else {
+                setSound(null)
+            }
         }
 
         if (replyAction != null && context.config.lockScreenVisibilitySetting == LOCK_SCREEN_SENDER_MESSAGE) {
@@ -213,7 +234,30 @@ class NotificationHelper(private val context: Context) {
         notificationManager.notify(notificationId, builder.build())
     }
 
-    private fun createChannel(id: String, name: String) {
+    private fun receivedSmsChannelId(playSound: Boolean, vibrate: Boolean): String {
+        return when {
+            playSound && vibrate -> NOTIFICATION_CHANNEL_ID
+            playSound -> NOTIFICATION_CHANNEL_SOUND
+            vibrate -> NOTIFICATION_CHANNEL_VIBRATE
+            else -> NOTIFICATION_CHANNEL_SILENT
+        }
+    }
+
+    private fun receivedSmsChannelName(playSound: Boolean, vibrate: Boolean): Int {
+        return when {
+            playSound && vibrate -> R.string.channel_received_sms
+            playSound -> R.string.channel_received_sms_sound
+            vibrate -> R.string.channel_received_sms_vibrate
+            else -> R.string.channel_received_sms_silent
+        }
+    }
+
+    private fun createChannel(
+        id: String,
+        name: String,
+        playSound: Boolean = true,
+        vibrate: Boolean = true,
+    ) {
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_NOTIFICATION)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -224,8 +268,12 @@ class NotificationHelper(private val context: Context) {
         NotificationChannel(id, name, importance).apply {
             setBypassDnd(false)
             enableLights(true)
-            setSound(soundUri, audioAttributes)
-            enableVibration(true)
+            if (playSound) {
+                setSound(soundUri, audioAttributes)
+            } else {
+                setSound(null, null)
+            }
+            enableVibration(vibrate)
             notificationManager.createNotificationChannel(this)
         }
     }

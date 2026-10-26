@@ -1076,6 +1076,11 @@ fun Context.showReceivedMessageNotification(
     threadId: Long,
     bitmap: Bitmap?,
 ) {
+    val alert = groupMessageAlert(threadId, address)
+    if (!alert.show) {
+        notificationManager.cancel(threadId.hashCode())
+        return
+    }
     Handler(Looper.getMainLooper()).post {
         notificationHelper.showMessageNotification(
             messageId = messageId,
@@ -1084,7 +1089,9 @@ fun Context.showReceivedMessageNotification(
             body = body,
             threadId = threadId,
             bitmap = bitmap,
-            sender = senderName
+            sender = senderName,
+            playSound = alert.sound,
+            vibrate = alert.vibration,
         )
     }
 }
@@ -1268,7 +1275,10 @@ fun Context.insertOrUpdateConversation(
     var updatedConv = conversation
     if (cachedConv != null) {
         // Telephony rebuilds the row without the group the user assigned.
-        updatedConv = updatedConv.copy(groupId = cachedConv.groupId)
+        updatedConv = updatedConv.copy(
+            groupId = cachedConv.groupId,
+            ignoreNumberPattern = cachedConv.ignoreNumberPattern,
+        )
         if (cachedConv.usesCustomTitle) {
             updatedConv = updatedConv.copy(
                 title = cachedConv.title,

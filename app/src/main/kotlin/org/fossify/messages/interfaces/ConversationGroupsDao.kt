@@ -13,8 +13,21 @@ interface ConversationGroupsDao {
     @Insert
     fun insert(group: ConversationGroup): Long
 
-    @Query("UPDATE conversation_groups SET name = :name, background_color = :backgroundColor WHERE id = :id")
-    fun update(id: Long, name: String, backgroundColor: Int)
+    @Query(
+        "UPDATE conversation_groups SET name = :name, background_color = :backgroundColor, " +
+            "show_notification = :showNotification, notification_sound = :notificationSound, " +
+            "notification_vibration = :notificationVibration, number_patterns = :numberPatterns " +
+            "WHERE id = :id"
+    )
+    fun update(
+        id: Long,
+        name: String,
+        backgroundColor: Int,
+        showNotification: Boolean,
+        notificationSound: Boolean,
+        notificationVibration: Boolean,
+        numberPatterns: String,
+    )
 
     @Query("DELETE FROM conversation_groups WHERE id = :id")
     fun delete(id: Long)

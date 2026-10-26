@@ -1,77 +1,185 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:paddingTop="@dimen/normal_margin"
-    android:paddingBottom="@dimen/normal_margin">
+    android:layout_height="wrap_content">
 
-    <org.fossify.commons.views.MyTextInputLayout
-        android:id="@+id/group_name_input_layout"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/big_margin"
-        android:layout_marginTop="@dimen/activity_margin"
-        android:layout_marginEnd="@dimen/big_margin"
-        android:hint="@string/group_name"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        android:orientation="vertical"
+        android:paddingTop="@dimen/normal_margin"
+        android:paddingBottom="@dimen/normal_margin">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/group_name_edit_text"
+        <org.fossify.commons.views.MyTextInputLayout
+            android:id="@+id/group_name_input_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textCapSentences"
-            android:maxLength="30"
-            android:maxLines="1" />
+            android:layout_marginStart="@dimen/big_margin"
+            android:layout_marginTop="@dimen/activity_margin"
+            android:layout_marginEnd="@dimen/big_margin"
+            android:hint="@string/group_name">
 
-    </org.fossify.commons.views.MyTextInputLayout>
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/group_name_edit_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapSentences"
+                android:maxLength="30"
+                android:maxLines="1" />
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/group_background_color_holder"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/big_margin"
-        android:layout_marginTop="@dimen/medium_margin"
-        android:layout_marginEnd="@dimen/big_margin"
-        android:background="?attr/selectableItemBackground"
-        android:paddingTop="@dimen/medium_margin"
-        android:paddingBottom="@dimen/medium_margin"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/group_name_input_layout">
+        </org.fossify.commons.views.MyTextInputLayout>
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/group_background_color_holder"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/big_margin"
+            android:layout_marginTop="@dimen/medium_margin"
+            android:layout_marginEnd="@dimen/big_margin"
+            android:background="?attr/selectableItemBackground"
+            android:paddingTop="@dimen/medium_margin"
+            android:paddingBottom="@dimen/medium_margin">
+
+            <org.fossify.commons.views.MyTextView
+                android:id="@+id/group_background_color_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="@string/background_color"
+                android:textSize="@dimen/normal_text_size"
+                app:layout_constraintEnd_toStartOf="@id/group_background_color_preview"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <org.fossify.commons.views.MyTextView
+                android:id="@+id/group_background_color_value"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/tiny_margin"
+                android:alpha="0.7"
+                android:text="@string/transparent"
+                android:textSize="@dimen/normal_text_size"
+                app:layout_constraintEnd_toStartOf="@id/group_background_color_preview"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/group_background_color_label" />
+
+            <ImageView
+                android:id="@+id/group_background_color_preview"
+                android:layout_width="@dimen/medium_icon_size"
+                android:layout_height="@dimen/medium_icon_size"
+                android:importantForAccessibility="no"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <org.fossify.commons.views.MyAppCompatCheckbox
+            android:id="@+id/group_show_notification_checkbox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/big_margin"
+            android:layout_marginTop="@dimen/medium_margin"
+            android:layout_marginEnd="@dimen/big_margin"
+            android:checked="true"
+            android:text="@string/show_group_notification" />
+
+        <LinearLayout
+            android:id="@+id/group_notification_options"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/activity_margin"
+            android:orientation="vertical">
+
+            <org.fossify.commons.views.MyAppCompatCheckbox
+                android:id="@+id/group_notification_sound_checkbox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/big_margin"
+                android:layout_marginEnd="@dimen/big_margin"
+                android:checked="true"
+                android:text="@string/group_notification_sound" />
+
+            <org.fossify.commons.views.MyAppCompatCheckbox
+                android:id="@+id/group_notification_vibration_checkbox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/big_margin"
+                android:layout_marginEnd="@dimen/big_margin"
+                android:checked="true"
+                android:text="@string/group_notification_vibration" />
+
+        </LinearLayout>
 
         <org.fossify.commons.views.MyTextView
-            android:id="@+id/group_background_color_label"
-            android:layout_width="0dp"
+            android:id="@+id/group_number_patterns_label"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/background_color"
-            android:textSize="@dimen/normal_text_size"
-            app:layout_constraintEnd_toStartOf="@id/group_background_color_preview"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            android:layout_marginStart="@dimen/big_margin"
+            android:layout_marginTop="@dimen/medium_margin"
+            android:layout_marginEnd="@dimen/big_margin"
+            android:text="@string/group_number_patterns"
+            android:textSize="@dimen/normal_text_size" />
 
         <org.fossify.commons.views.MyTextView
-            android:id="@+id/group_background_color_value"
-            android:layout_width="0dp"
+            android:id="@+id/group_number_patterns_hint"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/big_margin"
             android:layout_marginTop="@dimen/tiny_margin"
+            android:layout_marginEnd="@dimen/big_margin"
             android:alpha="0.7"
-            android:text="@string/transparent"
-            android:textSize="@dimen/normal_text_size"
-            app:layout_constraintEnd_toStartOf="@id/group_background_color_preview"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/group_background_color_label" />
+            android:text="@string/group_number_patterns_hint"
+            android:textSize="@dimen/smaller_text_size" />
 
-        <ImageView
-            android:id="@+id/group_background_color_preview"
-            android:layout_width="@dimen/medium_icon_size"
-            android:layout_height="@dimen/medium_icon_size"
-            android:importantForAccessibility="no"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+        <LinearLayout
+            android:id="@+id/group_number_pattern_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/big_margin"
+            android:layout_marginTop="@dimen/small_margin"
+            android:layout_marginEnd="@dimen/medium_margin"
+            android:orientation="vertical" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <LinearLayout
+            android:id="@+id/group_number_pattern_add_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/big_margin"
+            android:layout_marginTop="@dimen/small_margin"
+            android:layout_marginEnd="@dimen/medium_margin"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <org.fossify.commons.views.MyTextInputLayout
+                android:id="@+id/group_number_pattern_input_layout"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/number_pattern">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/group_number_pattern_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:imeOptions="actionDone"
+                    android:inputType="text|textNoSuggestions"
+                    android:maxLength="64"
+                    android:maxLines="1" />
+
+            </org.fossify.commons.views.MyTextInputLayout>
+
+            <ImageView
+                android:id="@+id/group_number_pattern_add"
+                android:layout_width="@dimen/medium_icon_size"
+                android:layout_height="@dimen/medium_icon_size"
+                android:layout_marginStart="@dimen/small_margin"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/add_number_pattern"
+                android:padding="@dimen/small_margin"
+                android:src="@drawable/ic_plus_vector" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

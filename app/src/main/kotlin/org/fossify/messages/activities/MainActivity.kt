@@ -11,6 +11,13 @@ import android.graphics.drawable.LayerDrawable
 import android.os.Bundle
 import android.provider.Telephony
 import android.text.TextUtils
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ImageView
 import androidx.appcompat.content.res.AppCompatResources
 import com.google.android.material.tabs.TabLayout
 import org.fossify.commons.dialogs.ConfirmationDialog
@@ -36,6 +43,7 @@ import org.fossify.commons.extensions.getProperPrimaryColor
 import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.hideKeyboard
 import org.fossify.commons.extensions.openNotificationSettings
+import org.fossify.commons.extensions.setSystemBarsAppearance
 import org.fossify.commons.extensions.toast
 import org.fossify.commons.extensions.underlineText
 import org.fossify.commons.extensions.updateTextColors
@@ -53,6 +61,7 @@ import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.helpers.isQPlus
 import org.fossify.commons.models.FAQItem
 import org.fossify.commons.models.Release
+import org.fossify.commons.views.MyTextView
 import org.fossify.messages.BuildConfig
 import org.fossify.messages.R
 import org.fossify.messages.adapters.ArchivedConversationsAdapter
@@ -81,6 +90,8 @@ import org.fossify.messages.extensions.getUnreadCountsByThread
 import org.fossify.messages.extensions.unreadBlockedBadgeText
 import org.fossify.messages.extensions.insertOrUpdateConversation
 import org.fossify.messages.extensions.messagesDB
+import org.fossify.messages.helpers.excludingPatternGroups
+import org.fossify.messages.helpers.patternGroupCopies
 import org.fossify.messages.helpers.IS_BLOCKED_CONVERSATION
 import org.fossify.messages.helpers.SEARCHED_MESSAGE_ID
 import org.fossify.messages.helpers.SHOW_BLOCKED_TAB
@@ -121,6 +132,11 @@ class MainActivity : SimpleActivity() {
     private var groupedConversations = emptyList<Conversation>()
     private var inboxConversations = ArrayList<Conversation>()
     private var archivedConversations = ArrayList<Conversation>()
+    private var inboxUnreadCount = 0
+    private var groupedUnreadCount = 0
+    private var unreadTotalButton: FrameLayout? = null
+    private var unreadTotalIcon: ImageView? = null
+    private var unreadTotalBadge: MyTextView? = null
 
     private val binding by viewBinding(ActivityMainBinding::inflate)
 
@@ -212,6 +228,8 @@ class MainActivity : SimpleActivity() {
         binding.mainMenu.requireToolbar().inflateMenu(R.menu.menu_main)
         binding.mainMenu.toggleHideOnScroll(true)
         binding.mainMenu.setupMenu()
+
+        setupUnreadTotalBadge()
 
         binding.mainMenu.onSearchClosedListener = {
             fadeOutSearch()
@@ -376,17 +394,58 @@ class MainActivity : SimpleActivity() {
         } else {
             color
         }
+        val useThemeColors = color == Color.TRANSPARENT
+        val contentColor = if (useThemeColors) getProperTextColor() else color.getContrastColor()
         binding.mainHolder.setBackgroundColor(resolved)
         binding.conversationsFastscroller.setBackgroundColor(resolved)
         binding.conversationsList.setBackgroundColor(resolved)
-        binding.conversationsTabs.setBackgroundColor(getProperBackgroundColor())
-        val contentColor = if (color == Color.TRANSPARENT) {
-            getProperTextColor()
-        } else {
-            color.getContrastColor()
-        }
         binding.noConversationsPlaceholder.setTextColor(contentColor)
         (binding.conversationsList.adapter as? BaseConversationsAdapter)?.updateListBackground(color)
+        applyTopChromeBackground(resolved, contentColor, useThemeColors)
+    }
+
+    private fun applyTopChromeBackground(
+        backgroundColor: Int,
+        contentColor: Int,
+        useThemeColors: Boolean,
+    ) {
+        val selectedTabColor = if (useThemeColors) getProperPrimaryColor() else contentColor
+        val normalTabColor = if (useThemeColors) contentColor else contentColor.adjustAlpha(0.7f)
+        binding.conversationsTabs.setBackgroundColor(backgroundColor)
+        binding.conversationsTabs.setTabTextColors(normalTabColor, selectedTabColor)
+        binding.conversationsTabs.setSelectedTabIndicatorColor(selectedTabColor)
+        if (useThemeColors) {
+            binding.mainMenu.updateColors()
+        } else {
+            binding.mainMenu.setBackgroundColor(backgroundColor)
+            binding.mainMenu.findViewById<View>(org.fossify.commons.R.id.toolbar_container)
+                ?.background?.applyColorFilter(searchBoxColor(backgroundColor))
+            binding.mainMenu.findViewById<ImageView>(org.fossify.commons.R.id.top_toolbar_search_icon)
+                ?.applyColorFilter(contentColor)
+            binding.mainMenu.findViewById<EditText>(org.fossify.commons.R.id.top_toolbar_search)?.apply {
+                setTextColor(contentColor)
+                setHintTextColor(contentColor.adjustAlpha(0.5f))
+            }
+            val toolbar = binding.mainMenu.requireToolbar()
+            toolbar.setTitleTextColor(contentColor)
+            toolbar.overflowIcon?.setTint(contentColor)
+            toolbar.navigationIcon?.setTint(contentColor)
+            updateMenuItemColors(toolbar.menu, backgroundColor, false)
+        }
+        updateBackgroundColor(backgroundColor)
+        window.setSystemBarsAppearance(backgroundColor)
+        styleUnreadTotalIcon(contentColor)
+        styleUnreadTotalBadge()
+    }
+
+    private fun searchBoxColor(tabBackground: Int): Int {
+        val whiteAmount = 0.3f
+        val keep = 1f - whiteAmount
+        return Color.rgb(
+            (Color.red(tabBackground) * keep + 255f * whiteAmount).toInt(),
+            (Color.green(tabBackground) * keep + 255f * whiteAmount).toInt(),
+            (Color.blue(tabBackground) * keep + 255f * whiteAmount).toInt(),
+        )
     }
 
     private fun showConversationTab(position: Int) {
@@ -703,7 +762,160 @@ class MainActivity : SimpleActivity() {
         }
     }
 
-    private fun applyTabBadge(index: Int, count: Int) {
+    private fun setupUnreadTotalBadge() {
+        if (unreadTotalButton != null) {
+            return
+        }
+        val searchBar = binding.mainMenu.findViewById<FrameLayout>(
+            org.fossify.commons.R.id.search_bar_container
+        ) ?: return
+        val buttonSize = unreadTotalButtonSize()
+        val badgeHeight = resources.getDimensionPixelSize(R.dimen.small_icon_size)
+        val badgeMargin = resources.getDimensionPixelSize(org.fossify.commons.R.dimen.small_margin)
+        val iconInset = resources.getDimensionPixelSize(org.fossify.commons.R.dimen.small_margin)
+        val icon = ImageView(this).apply {
+            setImageResource(R.drawable.ic_message_outline_vector)
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setPaddingRelative(iconInset, iconInset * 2, iconInset * 2, iconInset)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        val badge = MyTextView(this).apply {
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            isClickable = false
+            isFocusable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            minWidth = badgeHeight
+            minimumHeight = badgeHeight
+            maxLines = 1
+            setPaddingRelative(badgeMargin, 0, badgeMargin, 0)
+            setTextSize(
+                TypedValue.COMPLEX_UNIT_PX,
+                resources.getDimension(org.fossify.commons.R.dimen.list_tertiary_text_size),
+            )
+            background = AppCompatResources.getDrawable(
+                this@MainActivity,
+                org.fossify.commons.R.drawable.circle_background,
+            )?.mutate()
+            visibility = View.GONE
+        }
+        val ripple = TypedValue()
+        theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true)
+        val button = FrameLayout(this).apply {
+            isClickable = true
+            isFocusable = true
+            visibility = View.GONE
+            contentDescription = getString(R.string.go_to_last_message)
+            foreground = AppCompatResources.getDrawable(this@MainActivity, ripple.resourceId)
+            setOnClickListener { scrollToLastConversationInCurrentTab() }
+            addView(
+                icon,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            addView(
+                badge,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    badgeHeight,
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.END
+                },
+            )
+        }
+        searchBar.clipChildren = false
+        searchBar.addView(
+            button,
+            FrameLayout.LayoutParams(buttonSize, buttonSize).apply {
+                gravity = Gravity.CENTER_VERTICAL or Gravity.LEFT
+            },
+        )
+        unreadTotalButton = button
+        unreadTotalIcon = icon
+        unreadTotalBadge = badge
+        styleUnreadTotalIcon(getProperTextColor())
+        styleUnreadTotalBadge()
+        updateUnreadTotalBadge()
+    }
+
+    private fun unreadTotalButtonSize(): Int {
+        val typedValue = TypedValue()
+        val actionBarSize = if (theme.resolveAttribute(android.R.attr.actionBarSize, typedValue, true)) {
+            TypedValue.complexToDimensionPixelSize(typedValue.data, resources.displayMetrics)
+        } else {
+            resources.getDimensionPixelSize(org.fossify.commons.R.dimen.normal_icon_size)
+        }
+        val verticalPadding = resources.getDimensionPixelSize(org.fossify.commons.R.dimen.medium_margin) * 2
+        return (actionBarSize - verticalPadding).coerceAtLeast(
+            resources.getDimensionPixelSize(R.dimen.small_icon_size),
+        )
+    }
+
+    private fun styleUnreadTotalIcon(color: Int) {
+        unreadTotalIcon?.applyColorFilter(color)
+    }
+
+    private fun styleUnreadTotalBadge() {
+        val badge = unreadTotalBadge ?: return
+        badge.setTextColor(Color.WHITE)
+        badge.background?.applyColorFilter(Color.RED)
+    }
+
+    private fun updateUnreadTotalBadge() {
+        val button = unreadTotalButton ?: return
+        val badge = unreadTotalBadge ?: return
+        val total = inboxUnreadCount + groupedUnreadCount
+        val hasUnread = total > 0
+        button.beVisibleIf(hasUnread)
+        updateUnreadTotalSearchInset(hasUnread)
+        if (!hasUnread) {
+            return
+        }
+        badge.text = unreadBlockedBadgeText(total)
+        styleUnreadTotalBadge()
+        badge.beVisible()
+        button.contentDescription = getString(R.string.go_to_last_message) + ", " + resources.getQuantityString(
+            R.plurals.unread_messages_count,
+            total,
+            total,
+        )
+    }
+
+    private fun updateUnreadTotalSearchInset(reserveSpace: Boolean) {
+        val searchBox = binding.mainMenu.findViewById<View>(
+            org.fossify.commons.R.id.toolbar_container
+        ) ?: return
+        val searchParams = searchBox.layoutParams as? ViewGroup.MarginLayoutParams ?: return
+        val margin = if (reserveSpace) {
+            val gap = resources.getDimensionPixelSize(org.fossify.commons.R.dimen.small_margin)
+            unreadTotalButtonSize() + gap
+        } else {
+            0
+        }
+        if (searchParams.leftMargin == margin) {
+            return
+        }
+        searchParams.leftMargin = margin
+        searchBox.layoutParams = searchParams
+    }
+
+    private fun scrollToLastConversationInCurrentTab() {
+        val list = binding.conversationsList
+        val lastIndex = (list.adapter?.itemCount ?: 0) - 1
+        if (lastIndex < 0) {
+            return
+        }
+        list.stopScroll()
+        list.smoothScrollToPosition(lastIndex)
+    }
+
+    private fun applyTabBadge(
+        index: Int,
+        count: Int,
+        backgroundColor: Int = getProperPrimaryColor(),
+    ) {
         val tab = binding.conversationsTabs.getTabAt(index) ?: return
         if (count <= 0) {
             tab.removeBadge()
@@ -711,8 +923,8 @@ class MainActivity : SimpleActivity() {
             tab.orCreateBadge.apply {
                 maxCharacterCount = TAB_BADGE_CHARACTERS
                 number = count
-                backgroundColor = getProperPrimaryColor()
-                badgeTextColor = getProperPrimaryColor().getContrastColor()
+                this.backgroundColor = backgroundColor
+                badgeTextColor = backgroundColor.getContrastColor()
             }
         }
     }
@@ -727,13 +939,8 @@ class MainActivity : SimpleActivity() {
     private fun refreshConversationGroups(selectGroupId: Long = 0L) {
         val generation = ++groupRefreshGeneration
         ensureBackgroundThread {
-            val groups = try {
-                conversationGroupsDB.getAll()
-            } catch (_: Exception) {
-                emptyList()
-            }
-            val grouped = groupedConversationsForUi()
-            val unreadCounts = grouped.groupBy { it.groupId }.mapValues { (_, conversations) ->
+            val state = loadConversationGroupState()
+            val unreadCounts = state.grouped.groupBy { it.groupId }.mapValues { (_, conversations) ->
                 conversations.sumOf { it.unreadCount }
             }
             runOnUiThread {
@@ -741,20 +948,63 @@ class MainActivity : SimpleActivity() {
                     return@runOnUiThread
                 }
                 groupsLoaded = true
-                groupedConversations = grouped
+                groupedConversations = state.grouped
                 if (selectGroupId != 0L) {
                     selectedGroupId = selectGroupId
                     showingBlockedTab = false
                     showingArchivedTab = false
                 }
-                syncGroupTabs(groups, unreadCounts)
+                rememberInbox(state.inbox)
+                syncGroupTabs(state.groups, unreadCounts)
                 if (selectedGroupId != 0L && !showingBlockedTab && !showingArchivedTab) {
                     showGroupConversations(
-                        ArrayList(grouped.filter { it.groupId == selectedGroupId })
+                        ArrayList(state.grouped.filter { it.groupId == selectedGroupId })
                     )
                 }
                 binding.conversationsFab.beVisibleIf(showingInbox())
                 refreshMenuItems()
+            }
+        }
+    }
+
+    private fun loadConversationGroupState(): ConversationGroupState {
+        val groups = try {
+            conversationGroupsDB.getAll()
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val explicit = try {
+            conversationsDB.getGrouped()
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val ungrouped = try {
+            conversationsDB.getNonArchived()
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val unreadMap = try {
+            getUnreadCountsByThread()
+        } catch (_: Exception) {
+            null
+        }
+        val explicitUi = explicit.withLiveUnreadCounts(unreadMap)
+        val ungroupedUi = ungrouped.withLiveUnreadCounts(unreadMap)
+        return ConversationGroupState(
+            groups = groups,
+            grouped = explicitUi + ungroupedUi.patternGroupCopies(groups),
+            inbox = ungroupedUi.excludingPatternGroups(groups),
+        )
+    }
+
+    private fun List<Conversation>.withLiveUnreadCounts(
+        unreadMap: Map<Long, Int>?,
+    ): List<Conversation> {
+        return map { conversation ->
+            if (unreadMap == null) {
+                conversation.withVisibleUnreadCount()
+            } else {
+                conversation.withVisibleUnreadCount(unreadMap[conversation.threadId] ?: 0)
             }
         }
     }
@@ -786,8 +1036,10 @@ class MainActivity : SimpleActivity() {
             }
         }
         groups.forEachIndexed { index, group ->
-            applyTabBadge(groupTabOffset() + index, unreadCounts[group.id] ?: 0)
+            applyTabBadge(groupTabOffset() + index, unreadCounts[group.id] ?: 0, Color.RED)
         }
+        groupedUnreadCount = unreadCounts.values.sum()
+        updateUnreadTotalBadge()
     }
 
     private fun updateTabMode() {
@@ -832,22 +1084,6 @@ class MainActivity : SimpleActivity() {
         }
         selectedGroupId = 0L
         return 0
-    }
-
-    private fun groupedConversationsForUi(): List<Conversation> {
-        val stored = try {
-            conversationsDB.getGrouped()
-        } catch (_: Exception) {
-            return emptyList()
-        }
-        val unreadMap = try {
-            getUnreadCountsByThread()
-        } catch (_: Exception) {
-            return stored.map { it.withVisibleUnreadCount() }
-        }
-        return stored.map { conversation ->
-            conversation.withVisibleUnreadCount(unreadMap[conversation.threadId] ?: 0)
-        }
     }
 
     private fun showGroupConversations(conversations: ArrayList<Conversation>) {
@@ -907,9 +1143,9 @@ class MainActivity : SimpleActivity() {
             isNameTaken = { name ->
                 conversationGroups.any { it.name.equals(name, ignoreCase = true) }
             },
-        ) { name, backgroundColor ->
+        ) { form ->
             ensureBackgroundThread {
-                val id = createConversationGroup(name, backgroundColor)
+                val id = createConversationGroup(form)
                 runOnUiThread {
                     if (isDestroyed || isFinishing) {
                         return@runOnUiThread
@@ -930,13 +1166,17 @@ class MainActivity : SimpleActivity() {
             activity = this,
             initialName = group.name,
             initialBackgroundColor = group.backgroundColor,
+            initialShowNotification = group.showNotification,
+            initialNotificationSound = group.notificationSound,
+            initialNotificationVibration = group.notificationVibration,
+            initialNumberPatterns = group.numberPatterns,
             titleRes = R.string.rename_group,
             isNameTaken = { name ->
                 conversationGroups.any { it.id != group.id && it.name.equals(name, ignoreCase = true) }
             },
-        ) { name, backgroundColor ->
+        ) { form ->
             ensureBackgroundThread {
-                renameConversationGroup(group.id, name, backgroundColor)
+                renameConversationGroup(group.id, form)
                 runOnUiThread {
                     if (!isDestroyed && !isFinishing) {
                         refreshConversationGroups()
@@ -1071,6 +1311,11 @@ class MainActivity : SimpleActivity() {
 
     private fun getCachedConversations() {
         ensureBackgroundThread {
+            val groups = try {
+                conversationGroupsDB.getAll()
+            } catch (_: Exception) {
+                emptyList()
+            }
             val conversations = try {
                 conversationsDB.getNonArchived().toMutableList() as ArrayList<Conversation>
             } catch (_: Exception) {
@@ -1089,7 +1334,7 @@ class MainActivity : SimpleActivity() {
                 if (showingArchivedTab) {
                     showArchivedConversations(ArrayList(archivedForUi))
                 }
-                setupConversations(conversations, cached = true)
+                setupConversations(conversations.excludingPatternGroups(groups), cached = true)
                 refreshConversationGroups()
                 getNewConversations(
                     (conversations + archived).toMutableList() as ArrayList<Conversation>
@@ -1153,7 +1398,12 @@ class MainActivity : SimpleActivity() {
                 }
             }
 
-            val allConversations = conversationsDB.getNonArchived() as ArrayList<Conversation>
+            val groups = try {
+                conversationGroupsDB.getAll()
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val allConversations = conversationsDB.getNonArchived().excludingPatternGroups(groups)
             val archivedForUi = archivedConversationsForUi()
             runOnUiThread {
                 updateArchivedTabBadge(archivedForUi.sumOf { it.unreadCount })
@@ -1195,6 +1445,24 @@ class MainActivity : SimpleActivity() {
         }
     }
 
+    private fun rememberInbox(conversations: ArrayList<Conversation>) {
+        val sortedConversations = conversations
+            .sortedWith(
+                compareByDescending<Conversation> {
+                    config.pinnedConversations.contains(it.threadId.toString())
+                }.thenByDescending { it.date }
+            ).toMutableList() as ArrayList<Conversation>
+        inboxConversations = sortedConversations
+        inboxUnreadCount = sortedConversations.sumOf { it.unreadCount }
+        updateUnreadTotalBadge()
+        if (!showingInbox()) {
+            return
+        }
+        val adapter = binding.conversationsList.adapter as? ConversationsAdapter ?: return
+        adapter.updateConversations(sortedConversations)
+        showOrHidePlaceholder(sortedConversations.isEmpty())
+    }
+
     private fun setupConversations(
         conversations: ArrayList<Conversation>,
         cached: Boolean = false,
@@ -1207,6 +1475,8 @@ class MainActivity : SimpleActivity() {
             ).toMutableList() as ArrayList<Conversation>
 
         inboxConversations = sortedConversations
+        inboxUnreadCount = sortedConversations.sumOf { it.unreadCount }
+        updateUnreadTotalBadge()
         if (!showingInbox()) {
             return
         }
@@ -1484,6 +1754,12 @@ class MainActivity : SimpleActivity() {
             checkWhatsNew(this, BuildConfig.VERSION_CODE)
         }
     }
+
+    private data class ConversationGroupState(
+        val groups: List<ConversationGroup>,
+        val grouped: List<Conversation>,
+        val inbox: ArrayList<Conversation>,
+    )
 
     companion object {
         private const val TAB_BADGE_CHARACTERS = 3

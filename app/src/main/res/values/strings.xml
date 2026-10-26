@@ -5,7 +5,7 @@
     <string name="message_not_sent_short">Message not sent</string>
     <string name="message_not_sent_touch_retry">Not sent. Touch to retry.</string>
     <string name="message_sending_error">Your message to \'%s\' has not been sent</string>
-    <string name="add_person">Add Person</string>
+    <string name="add_person">Add to contacts</string>
     <string name="attachment">Attachment</string>
     <string name="no_conversations_found">No stored conversations have been found</string>
     <string name="start_conversation">Start a conversation</string>
@@ -54,9 +54,17 @@
     <string name="message_details_received_at">Received at</string>
     <!-- Notifications -->
     <string name="channel_received_sms">Received SMS</string>
+    <string name="channel_received_sms_sound">Received SMS, sound only</string>
+    <string name="channel_received_sms_vibrate">Received SMS, vibration only</string>
+    <string name="channel_received_sms_silent">Received SMS, silent</string>
     <string name="new_message">New message</string>
     <string name="mark_as_read">Mark as Read</string>
     <string name="mark_as_unread">Mark as Unread</string>
+    <plurals name="unread_messages_count">
+        <item quantity="one">%d unread message</item>
+        <item quantity="other">%d unread messages</item>
+    </plurals>
+    <string name="go_to_last_message">Go to last message</string>
     <string name="me">Me</string>
     <string name="enable_custom_notifications">Enable custom notifications</string>
     <!-- Archive -->
@@ -84,7 +92,17 @@
     <string name="group_name_exists">A group with this name already exists</string>
     <string name="background_color">Background color</string>
     <string name="transparent">Transparent</string>
-    <string name="no_conversations_in_group">No conversations in this group. From Messages, select conversations and choose Move to group.</string>
+    <string name="show_group_notification">Show notifications</string>
+    <string name="group_notification_sound">Notification sound</string>
+    <string name="group_notification_vibration">Notification vibration</string>
+    <string name="group_number_patterns">Number patterns</string>
+    <string name="group_number_patterns_hint">* matches any digits, for example *989000*. Matching ungrouped messages appear in this group.</string>
+    <string name="number_pattern">Number pattern</string>
+    <string name="add_number_pattern">Add pattern</string>
+    <string name="remove_number_pattern">Remove pattern</string>
+    <string name="group_number_pattern_invalid">Each pattern needs at least one digit. * matches any digits.</string>
+    <string name="group_number_pattern_exists">This pattern is already in the list</string>
+    <string name="no_conversations_in_group">No conversations in this group. Move conversations here, or add a number pattern such as *989000*.</string>
     <!-- Recycle bin -->
     <string name="restore">Restore</string>
     <string name="restore_all_messages">Restore all messages</string>

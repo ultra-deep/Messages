@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
 import android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
 import android.content.res.ColorStateList
+import android.graphics.Color
 import android.graphics.drawable.LayerDrawable
 import android.net.Uri
 import android.os.Bundle
@@ -54,6 +55,7 @@ import org.fossify.commons.dialogs.ConfirmationDialog
 import org.fossify.commons.dialogs.PermissionRequiredDialog
 import org.fossify.commons.dialogs.RadioGroupDialog
 import org.fossify.commons.extensions.addBlockedNumber
+import org.fossify.commons.extensions.adjustAlpha
 import org.fossify.commons.extensions.applyColorFilter
 import org.fossify.commons.extensions.beGone
 import org.fossify.commons.extensions.beVisible
@@ -89,8 +91,8 @@ import org.fossify.commons.extensions.updateTextColors
 import org.fossify.commons.extensions.value
 import org.fossify.commons.extensions.viewBinding
 import org.fossify.commons.helpers.ContactsHelper
+import org.fossify.commons.helpers.MEDIUM_ALPHA
 import org.fossify.commons.helpers.ExportResult
-import org.fossify.commons.helpers.KEY_PHONE
 import org.fossify.commons.helpers.MyContactsContentProvider
 import org.fossify.commons.helpers.NavigationIcon
 import org.fossify.commons.helpers.PERMISSION_READ_PHONE_STATE
@@ -113,6 +115,7 @@ import org.fossify.messages.dialogs.InvalidNumberDialog
 import org.fossify.messages.dialogs.RenameConversationDialog
 import org.fossify.messages.dialogs.ScheduleMessageDialog
 import org.fossify.messages.extensions.clearExpiredScheduledMessages
+import org.fossify.messages.extensions.conversationTabBackgroundColor
 import org.fossify.messages.extensions.config
 import org.fossify.messages.extensions.conversationsDB
 import org.fossify.messages.extensions.copyToUri
@@ -238,6 +241,7 @@ class ThreadActivity : SimpleActivity() {
     private lateinit var scheduledDateTime: DateTime
 
     private var isAttachmentPickerVisible = false
+    private var conversationBackgroundColor = Color.TRANSPARENT
 
     private val binding by viewBinding(ActivityThreadBinding::inflate)
 
@@ -287,11 +291,8 @@ class ThreadActivity : SimpleActivity() {
 
     override fun onResume() {
         super.onResume()
-        setupTopAppBar(
-            topAppBar = binding.threadAppbar,
-            navigationIcon = NavigationIcon.Arrow,
-            topBarColor = getProperBackgroundColor()
-        )
+        applyThreadBackground()
+        refreshConversationBackground()
 
         isActivityVisible = true
 
@@ -424,7 +425,7 @@ class ThreadActivity : SimpleActivity() {
             R.id.add_number_to_contact -> addNumberToContact()
             R.id.copy_number -> copyNumberToClipboard()
             R.id.dial_number -> dialNumber()
-            R.id.manage_people -> managePeople()
+            R.id.manage_people -> addNumberToContact()
             R.id.mark_as_unread -> markAsUnread()
             else -> return false
         }
@@ -626,7 +627,9 @@ class ThreadActivity : SimpleActivity() {
 
             binding.threadMessagesList.adapter = currAdapter
         }
-        return currAdapter as ThreadAdapter
+        return (currAdapter as ThreadAdapter).also {
+            it.updateConversationBackground(conversationBackgroundColor)
+        }
     }
 
     private fun setupAdapter() {
@@ -1015,6 +1018,7 @@ class ThreadActivity : SimpleActivity() {
         }
 
         setupScheduleSendUi()
+        applyThreadBackground()
     }
 
     private fun askForExactAlarmPermissionIfNeeded(callback: () -> Unit = {}) {
@@ -1286,6 +1290,7 @@ class ThreadActivity : SimpleActivity() {
                 runOnUiThread {
                     if (!isDestroyed && !isFinishing) {
                         refreshMenuItems()
+                        refreshConversationBackground()
                     }
                 }
             }
@@ -1294,12 +1299,13 @@ class ThreadActivity : SimpleActivity() {
 
     private fun removeConversationFromGroup() {
         ensureBackgroundThread {
-            removeConversationsFromGroup(listOf(threadId))
-            conversation = conversation?.copy(groupId = 0L)
+            removeConversationsFromGroup(listOf(threadId), conversation?.groupId ?: 0L)
+            conversation = conversationsDB.getConversationWithThreadId(threadId) ?: conversation
             runOnUiThread {
                 refreshConversations()
                 if (!isDestroyed && !isFinishing) {
                     refreshMenuItems()
+                    refreshConversationBackground()
                 }
             }
         }
@@ -1315,18 +1321,6 @@ class ThreadActivity : SimpleActivity() {
             ?.ifEmpty { participants.firstOrNull()?.phoneNumbers?.firstOrNull()?.value }
             ?: return
         copyToClipboard(phoneNumber)
-    }
-
-    private fun managePeople() {
-        if (binding.threadAddContacts.isVisible()) {
-            hideKeyboard()
-            binding.threadAddContacts.beGone()
-        } else {
-            showSelectedContacts()
-            binding.threadAddContacts.beVisible()
-            binding.addContactOrNumber.requestFocus()
-            showKeyboard(binding.addContactOrNumber)
-        }
     }
 
     private fun showSelectedContacts() {
@@ -1391,12 +1385,14 @@ class ThreadActivity : SimpleActivity() {
     }
 
     private fun addNumberToContact() {
-        val phoneNumber =
-            participants.firstOrNull()?.phoneNumbers?.firstOrNull()?.normalizedNumber ?: return
-        Intent().apply {
-            action = Intent.ACTION_INSERT_OR_EDIT
-            type = "vnd.android.cursor.item/contact"
-            putExtra(KEY_PHONE, phoneNumber)
+        val participant = participants.firstOrNull() ?: return
+        val phoneNumber = participant.phoneNumbers.firstOrNull()?.normalizedNumber ?: return
+        Intent(Intent.ACTION_INSERT_OR_EDIT).apply {
+            type = ContactsContract.Contacts.CONTENT_ITEM_TYPE
+            putExtra(ContactsContract.Intents.Insert.PHONE, phoneNumber)
+            if (participant.name.isNotBlank() && participant.name != phoneNumber) {
+                putExtra(ContactsContract.Intents.Insert.NAME, participant.name)
+            }
             launchActivityIntent(this)
         }
     }
@@ -2259,6 +2255,48 @@ class ThreadActivity : SimpleActivity() {
             .setDuration(500L)
             .setInterpolator(OvershootInterpolator())
             .start()
+    }
+
+    private fun refreshConversationBackground() {
+        if (isBlockedConversation) {
+            return
+        }
+        ensureBackgroundThread {
+            val color = conversationTabBackgroundColor(threadId)
+            runOnUiThread {
+                if (isDestroyed || isFinishing || conversationBackgroundColor == color) {
+                    return@runOnUiThread
+                }
+                conversationBackgroundColor = color
+                applyThreadBackground()
+            }
+        }
+    }
+
+    private fun applyThreadBackground() {
+        val customColor = conversationBackgroundColor
+        val useCustomColor = customColor != Color.TRANSPARENT
+        val backgroundColor = if (useCustomColor) customColor else getProperBackgroundColor()
+        val contentColor = if (useCustomColor) {
+            backgroundColor.getContrastColor()
+        } else {
+            getProperTextColor()
+        }
+        binding.threadCoordinator.setBackgroundColor(backgroundColor)
+        binding.threadHolder.setBackgroundColor(backgroundColor)
+        binding.threadMessagesFastscroller.setBackgroundColor(backgroundColor)
+        binding.threadMessagesList.setBackgroundColor(backgroundColor)
+        binding.addContactOrNumber.setTextColor(contentColor)
+        binding.addContactOrNumber.setHintTextColor(contentColor.adjustAlpha(MEDIUM_ALPHA))
+        binding.confirmManageContacts.applyColorFilter(contentColor)
+        binding.confirmInsertedNumber.applyColorFilter(contentColor)
+        updateBackgroundColor(backgroundColor)
+        setupTopAppBar(
+            topAppBar = binding.threadAppbar,
+            navigationIcon = NavigationIcon.Arrow,
+            topBarColor = backgroundColor,
+        )
+        (binding.threadMessagesList.adapter as? ThreadAdapter)?.updateConversationBackground(customColor)
     }
 
     private fun getBottomBarColor() = if (isDynamicTheme()) {

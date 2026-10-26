@@ -67,7 +67,7 @@ class GroupConversationsAdapter(
     private fun removeFromGroup() {
         val threadIds = selectedConversations().map { it.threadId }
         ensureBackgroundThread {
-            activity.removeConversationsFromGroup(threadIds)
+            activity.removeConversationsFromGroup(threadIds, groupId())
             finishAfterChange()
         }
     }
