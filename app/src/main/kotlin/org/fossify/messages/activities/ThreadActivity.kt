@@ -328,6 +328,8 @@ class ThreadActivity : SimpleActivity() {
             refreshConversations()
         }
 
+        (binding.threadMessagesList.adapter as? ThreadAdapter)?.refreshDisplayedDates()
+
         val bottomBarColor = getBottomBarColor()
         binding.messageHolder.root.setBackgroundColor(bottomBarColor)
         binding.shortCodeHolder.root.setBackgroundColor(bottomBarColor)

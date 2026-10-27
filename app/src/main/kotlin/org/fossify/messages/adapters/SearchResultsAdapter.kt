@@ -4,6 +4,7 @@ import android.util.TypedValue
 import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import org.fossify.commons.adapters.MyRecyclerViewAdapter
 import org.fossify.commons.extensions.getTextSize
@@ -12,6 +13,10 @@ import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.views.MyRecyclerView
 import org.fossify.messages.activities.SimpleActivity
 import org.fossify.messages.databinding.ItemSearchResultBinding
+import org.fossify.messages.extensions.RelativeDateTicker
+import org.fossify.messages.extensions.config
+import org.fossify.messages.extensions.forEachVisiblePosition
+import org.fossify.messages.extensions.formatMessageDate
 import org.fossify.messages.models.SearchResult
 
 class SearchResultsAdapter(
@@ -20,6 +25,7 @@ class SearchResultsAdapter(
 
     private var fontSize = activity.getTextSize()
     private var textToHighlight = highlightText
+    private var relativeDateTicker: RelativeDateTicker? = null
 
     override fun getActionMenuId() = 0
 
@@ -38,6 +44,27 @@ class SearchResultsAdapter(
     override fun onActionModeCreated() {}
 
     override fun onActionModeDestroyed() {}
+
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        dateTicker().attach(recyclerView)
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        relativeDateTicker?.detach(recyclerView)
+        super.onDetachedFromRecyclerView(recyclerView)
+    }
+
+    fun refreshDisplayedDates() {
+        relativeDateTicker?.refreshNow()
+    }
+
+    private fun dateTicker(): RelativeDateTicker {
+        return relativeDateTicker ?: RelativeDateTicker(
+            isRelativeDateTime = { activity.config.useRelativeDateTime },
+            refreshDates = ::refreshVisibleDates,
+        ).also { relativeDateTicker = it }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val binding = ItemSearchResultBinding.inflate(layoutInflater, parent, false)
@@ -65,6 +92,21 @@ class SearchResultsAdapter(
         }
     }
 
+    private fun refreshVisibleDates(recyclerView: RecyclerView) {
+        if (activity.isDestroyed || activity.isFinishing) {
+            return
+        }
+        recyclerView.forEachVisiblePosition { child, position ->
+            val searchResult = searchResults.getOrNull(position) ?: return@forEachVisiblePosition
+            ItemSearchResultBinding.bind(child).searchResultDate.text =
+                searchResult.dateMillis.formatMessageDate(
+                    context = child.context,
+                    hideTimeOnOtherDays = true,
+                    showCurrentYear = true,
+                )
+        }
+    }
+
     private fun setupView(view: View, searchResult: SearchResult) {
         ItemSearchResultBinding.bind(view).apply {
             searchResultTitle.apply {
@@ -80,7 +122,11 @@ class SearchResultsAdapter(
             }
 
             searchResultDate.apply {
-                text = searchResult.date
+                text = searchResult.dateMillis.formatMessageDate(
+                    context = context,
+                    hideTimeOnOtherDays = true,
+                    showCurrentYear = true,
+                )
                 setTextColor(textColor)
                 setTextSize(TypedValue.COMPLEX_UNIT_PX, fontSize * 0.8f)
             }

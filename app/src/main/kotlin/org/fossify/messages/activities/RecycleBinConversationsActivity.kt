@@ -140,6 +140,7 @@ class RecycleBinConversationsActivity : SimpleActivity() {
         try {
             getOrCreateConversationsAdapter().apply {
                 updateConversations(sortedConversations)
+                refreshDisplayedDates()
             }
         } catch (ignored: Exception) {
         }

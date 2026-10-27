@@ -16,6 +16,7 @@ import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
 import androidx.viewbinding.ViewBinding
 import com.bumptech.glide.Glide
@@ -34,7 +35,6 @@ import org.fossify.commons.extensions.beGone
 import org.fossify.commons.extensions.beVisible
 import org.fossify.commons.extensions.beVisibleIf
 import org.fossify.commons.extensions.copyToClipboard
-import org.fossify.commons.extensions.formatDateOrTime
 import org.fossify.commons.extensions.getContrastColor
 import org.fossify.commons.extensions.getProperPrimaryColor
 import org.fossify.commons.extensions.getProperTextColor
@@ -64,7 +64,11 @@ import org.fossify.messages.databinding.ItemThreadSuccessBinding
 import org.fossify.messages.dialogs.DeleteConfirmationDialog
 import org.fossify.messages.dialogs.MessageDetailsDialog
 import org.fossify.messages.dialogs.SelectTextDialog
+import org.fossify.messages.extensions.RelativeDateTicker
 import org.fossify.messages.extensions.config
+import org.fossify.messages.extensions.forEachVisiblePosition
+import org.fossify.messages.extensions.formatMessageDate
+import org.fossify.messages.extensions.formatRelativeOr
 import org.fossify.messages.extensions.getContactFromAddress
 import org.fossify.messages.extensions.isImageMimeType
 import org.fossify.messages.extensions.isPlayableAudioMimeType
@@ -106,6 +110,7 @@ class ThreadAdapter(
     @SuppressLint("MissingPermission")
     private val hasMultipleSIMCards = (activity.subscriptionManagerCompat().activeSubscriptionInfoList?.size ?: 0) > 1
     private val maxChatBubbleWidth = (activity.usableScreenSize.x * 0.8f).toInt()
+    private var relativeDateTicker: RelativeDateTicker? = null
 
     companion object {
         private const val MAX_MEDIA_HEIGHT_RATIO = 3
@@ -174,6 +179,27 @@ class ThreadAdapter(
 
     override fun onActionModeDestroyed() {}
 
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        dateTicker().attach(recyclerView)
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        relativeDateTicker?.detach(recyclerView)
+        super.onDetachedFromRecyclerView(recyclerView)
+    }
+
+    fun refreshDisplayedDates() {
+        relativeDateTicker?.refreshNow()
+    }
+
+    private fun dateTicker(): RelativeDateTicker {
+        return relativeDateTicker ?: RelativeDateTicker(
+            isRelativeDateTime = { activity.config.useRelativeDateTime },
+            refreshDates = ::refreshVisibleDates,
+        ).also { relativeDateTicker = it }
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val binding = when (viewType) {
             THREAD_DATE_TIME -> ItemThreadDateTimeBinding.inflate(layoutInflater, parent, false)
@@ -235,7 +261,9 @@ class ThreadAdapter(
         } else {
             selectedMessages.filter { it.body.isNotEmpty() }.joinToString("\n\n") { message ->
                 val format = "${activity.config.dateFormat}, ${activity.getTimeFormat()}"
-                val dateTime = DateTime(message.millis()).toString(format)
+                val dateTime = message.millis().formatRelativeOr(activity) {
+                    DateTime(message.millis()).toString(format)
+                }
                 val sender = if (message.isReceivedMessage()) message.senderName else activity.getString(R.string.me)
                 "[$dateTime] $sender: ${message.body}"
             }
@@ -605,13 +633,28 @@ class ThreadAdapter(
         parent.addView(attachmentView)
     }
 
+    private fun refreshVisibleDates(recyclerView: RecyclerView) {
+        if (activity.isDestroyed || activity.isFinishing) {
+            return
+        }
+        recyclerView.forEachVisiblePosition { child, position ->
+            val dateTime = currentList.getOrNull(position) as? ThreadDateTime ?: return@forEachVisiblePosition
+            ItemThreadDateTimeBinding.bind(child).threadDateTime.text =
+                (dateTime.date * 1000L).formatMessageDate(
+                    context = child.context,
+                    hideTimeOnOtherDays = false,
+                    showCurrentYear = false,
+                )
+        }
+    }
+
     private fun setupDateTime(view: View, dateTime: ThreadDateTime) {
         ItemThreadDateTimeBinding.bind(view).apply {
             threadDateTime.apply {
-                text = (dateTime.date * 1000L).formatDateOrTime(
+                text = (dateTime.date * 1000L).formatMessageDate(
                     context = context,
                     hideTimeOnOtherDays = false,
-                    showCurrentYear = false
+                    showCurrentYear = false,
                 )
                 setTextSize(TypedValue.COMPLEX_UNIT_PX, fontSize)
             }

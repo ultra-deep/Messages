@@ -36,7 +36,6 @@ import org.fossify.commons.extensions.checkAppSideloading
 import org.fossify.commons.extensions.checkWhatsNew
 import org.fossify.commons.extensions.convertToBitmap
 import org.fossify.commons.extensions.fadeIn
-import org.fossify.commons.extensions.formatDateOrTime
 import org.fossify.commons.extensions.getMyContactsCursor
 import org.fossify.commons.extensions.getContrastColor
 import org.fossify.commons.extensions.getProperBackgroundColor
@@ -192,7 +191,9 @@ class MainActivity : SimpleActivity() {
             }
 
             updateDrafts()
+            refreshDisplayedDates()
         }
+        (binding.searchResultsList.adapter as? SearchResultsAdapter)?.refreshDisplayedDates()
 
         applyConversationTabVisibility()
         styleConversationTabs()
@@ -1834,19 +1835,13 @@ class MainActivity : SimpleActivity() {
     ) {
         val searchResults = ArrayList<SearchResult>()
         conversations.forEach { conversation ->
-            val date = (conversation.date * 1000L).formatDateOrTime(
-                context = this,
-                hideTimeOnOtherDays = true,
-                showCurrentYear = true
-            )
-
             val searchResult = SearchResult(
                 messageId = -1,
                 title = conversation.title,
                 snippet = conversation.phoneNumber,
-                date = date,
+                dateMillis = conversation.date * 1000L,
                 threadId = conversation.threadId,
-                photoUri = conversation.photoUri
+                photoUri = conversation.photoUri,
             )
             searchResults.add(searchResult)
         }
@@ -1858,19 +1853,13 @@ class MainActivity : SimpleActivity() {
                 recipient = TextUtils.join(", ", participantNames)
             }
 
-            val date = (message.date * 1000L).formatDateOrTime(
-                context = this,
-                hideTimeOnOtherDays = true,
-                showCurrentYear = true
-            )
-
             val searchResult = SearchResult(
                 messageId = message.id,
                 title = recipient,
                 snippet = message.body,
-                date = date,
+                dateMillis = message.date * 1000L,
                 threadId = message.threadId,
-                photoUri = message.senderPhotoUri
+                photoUri = message.senderPhotoUri,
             )
             searchResults.add(searchResult)
         }

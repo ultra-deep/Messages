@@ -10,6 +10,7 @@ import org.fossify.commons.extensions.getTimeFormatWithSeconds
 import org.fossify.commons.extensions.setupDialogStuff
 import org.fossify.messages.R
 import org.fossify.messages.extensions.config
+import org.fossify.messages.extensions.formatRelativeOr
 import org.fossify.messages.extensions.subscriptionManagerCompat
 import org.fossify.messages.models.Message
 import org.joda.time.DateTime
@@ -72,6 +73,10 @@ class MessageDetailsDialog(val activity: BaseSimpleActivity, val message: Messag
     }
 
     private fun Message.getSentOrReceivedAt(): String {
-        return DateTime(date * 1000L).toString("${activity.config.dateFormat} ${activity.getTimeFormatWithSeconds()}")
+        val millis = date * 1000L
+        return millis.formatRelativeOr(activity) {
+            val pattern = "${activity.config.dateFormat} ${activity.getTimeFormatWithSeconds()}"
+            DateTime(millis).toString(pattern)
+        }
     }
 }

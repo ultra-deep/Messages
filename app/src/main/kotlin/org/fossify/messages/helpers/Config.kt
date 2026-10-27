@@ -22,6 +22,11 @@ class Config(context: Context) : BaseConfig(context) {
         set(showCharacterCounter) = prefs.edit()
             .putBoolean(SHOW_CHARACTER_COUNTER, showCharacterCounter).apply()
 
+    var useRelativeDateTime: Boolean
+        get() = prefs.getBoolean(USE_RELATIVE_DATE_TIME, false)
+        set(useRelativeDateTime) = prefs.edit()
+            .putBoolean(USE_RELATIVE_DATE_TIME, useRelativeDateTime).apply()
+
     var useSimpleCharacters: Boolean
         get() = prefs.getBoolean(USE_SIMPLE_CHARACTERS, false)
         set(useSimpleCharacters) = prefs.edit()

@@ -8,10 +8,10 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.appcompat.widget.PopupMenu
+import androidx.recyclerview.widget.RecyclerView
 import org.fossify.commons.adapters.MyRecyclerViewAdapter
 import org.fossify.commons.dialogs.ConfirmationDialog
 import org.fossify.commons.extensions.copyToClipboard
-import org.fossify.commons.extensions.formatDateOrTime
 import org.fossify.commons.extensions.getPopupMenuTheme
 import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.getTextSize
@@ -23,7 +23,11 @@ import org.fossify.commons.views.MyRecyclerView
 import org.fossify.messages.R
 import org.fossify.messages.activities.SimpleActivity
 import org.fossify.messages.databinding.ItemBlockedMessageBinding
+import org.fossify.messages.extensions.RelativeDateTicker
+import org.fossify.messages.extensions.config
 import org.fossify.messages.extensions.deleteBlockedMessages
+import org.fossify.messages.extensions.forEachVisiblePosition
+import org.fossify.messages.extensions.formatMessageDate
 import org.fossify.messages.extensions.moveBlockedMessageToInbox
 import org.fossify.messages.models.BlockedMessageEntry
 
@@ -39,6 +43,7 @@ class BlockedMessagesAdapter(
     itemClick: (Any) -> Unit,
 ) : MyRecyclerViewAdapter(activity, recyclerView, itemClick) {
     private val fontSize = activity.getTextSize()
+    private var relativeDateTicker: RelativeDateTicker? = null
 
     init {
         setupDragListener(true)
@@ -79,6 +84,27 @@ class BlockedMessagesAdapter(
 
     override fun onActionModeDestroyed() {}
 
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        dateTicker().attach(recyclerView)
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        relativeDateTicker?.detach(recyclerView)
+        super.onDetachedFromRecyclerView(recyclerView)
+    }
+
+    fun refreshDisplayedDates() {
+        relativeDateTicker?.refreshNow()
+    }
+
+    private fun dateTicker(): RelativeDateTicker {
+        return relativeDateTicker ?: RelativeDateTicker(
+            isRelativeDateTime = { activity.config.useRelativeDateTime },
+            refreshDates = ::refreshVisibleDates,
+        ).also { relativeDateTicker = it }
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val binding = ItemBlockedMessageBinding.inflate(layoutInflater, parent, false)
         return createViewHolder(binding.root)
@@ -109,7 +135,7 @@ class BlockedMessagesAdapter(
                 setTypeface(typeface, style)
             }
             blockedMessageDate.apply {
-                text = message.dateMillis.formatDateOrTime(
+                text = message.dateMillis.formatMessageDate(
                     context = context,
                     hideTimeOnOtherDays = true,
                     showCurrentYear = false,
@@ -132,6 +158,21 @@ class BlockedMessagesAdapter(
             overflowMenuIcon.setOnClickListener {
                 showPopupMenu(overflowMenuAnchor, message)
             }
+        }
+    }
+
+    private fun refreshVisibleDates(recyclerView: RecyclerView) {
+        if (activity.isDestroyed || activity.isFinishing) {
+            return
+        }
+        recyclerView.forEachVisiblePosition { child, position ->
+            val message = messages.getOrNull(position) ?: return@forEachVisiblePosition
+            ItemBlockedMessageBinding.bind(child).blockedMessageDate.text =
+                message.dateMillis.formatMessageDate(
+                    context = child.context,
+                    hideTimeOnOtherDays = true,
+                    showCurrentYear = false,
+                )
         }
     }
 

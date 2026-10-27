@@ -7,7 +7,6 @@ import android.view.View
 import android.widget.ImageView
 import androidx.activity.result.contract.ActivityResultContracts
 import org.fossify.commons.activities.ManageBlockedNumbersActivity
-import org.fossify.commons.dialogs.ChangeDateTimeFormatDialog
 import org.fossify.commons.dialogs.ColorPickerDialog
 import org.fossify.commons.dialogs.ConfirmationDialog
 import org.fossify.commons.dialogs.RadioGroupDialog
@@ -36,6 +35,7 @@ import org.fossify.commons.models.RadioItem
 import org.fossify.commons.views.MyTextView
 import org.fossify.messages.R
 import org.fossify.messages.databinding.ActivitySettingsBinding
+import org.fossify.messages.dialogs.ChangeDateTimeFormatDialog
 import org.fossify.messages.dialogs.ExportMessagesDialog
 import org.fossify.messages.extensions.config
 import org.fossify.messages.extensions.showBackgroundColorPreview

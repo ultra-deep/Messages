@@ -15,7 +15,6 @@ import com.qtalk.recyclerviewfastscroller.RecyclerViewFastScroller
 import org.fossify.commons.adapters.MyRecyclerViewListAdapter
 import org.fossify.commons.extensions.applyColorFilter
 import org.fossify.commons.extensions.beVisibleIf
-import org.fossify.commons.extensions.formatDateOrTime
 import org.fossify.commons.extensions.getContrastColor
 import org.fossify.commons.extensions.getTextSize
 import org.fossify.commons.extensions.setupViewBackground
@@ -25,7 +24,10 @@ import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.views.MyRecyclerView
 import org.fossify.messages.activities.SimpleActivity
 import org.fossify.messages.databinding.ItemConversationBinding
+import org.fossify.messages.extensions.RelativeDateTicker
 import org.fossify.messages.extensions.config
+import org.fossify.messages.extensions.forEachVisiblePosition
+import org.fossify.messages.extensions.formatMessageDate
 import org.fossify.messages.extensions.getAllDrafts
 import org.fossify.messages.models.Conversation
 
@@ -49,6 +51,7 @@ abstract class BaseConversationsAdapter(
     private var unreadBadgeColor: Int? = null
 
     private var recyclerViewState: Parcelable? = null
+    private var relativeDateTicker: RelativeDateTicker? = null
 
     init {
         setupDragListener(true)
@@ -131,6 +134,27 @@ abstract class BaseConversationsAdapter(
 
     override fun onActionModeDestroyed() {}
 
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        dateTicker().attach(recyclerView)
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        relativeDateTicker?.detach(recyclerView)
+        super.onDetachedFromRecyclerView(recyclerView)
+    }
+
+    fun refreshDisplayedDates() {
+        relativeDateTicker?.refreshNow()
+    }
+
+    private fun dateTicker(): RelativeDateTicker {
+        return relativeDateTicker ?: RelativeDateTicker(
+            isRelativeDateTime = { activity.config.useRelativeDateTime },
+            refreshDates = ::refreshVisibleDates,
+        ).also { relativeDateTicker = it }
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val binding = ItemConversationBinding.inflate(layoutInflater, parent, false)
         return createViewHolder(binding.root)
@@ -155,6 +179,21 @@ abstract class BaseConversationsAdapter(
         if (!activity.isDestroyed && !activity.isFinishing) {
             val itemView = ItemConversationBinding.bind(holder.itemView)
             Glide.with(activity).clear(itemView.conversationImage)
+        }
+    }
+
+    private fun refreshVisibleDates(recyclerView: RecyclerView) {
+        if (activity.isDestroyed || activity.isFinishing) {
+            return
+        }
+        recyclerView.forEachVisiblePosition { child, position ->
+            val conversation = currentList.getOrNull(position) ?: return@forEachVisiblePosition
+            ItemConversationBinding.bind(child).conversationDate.text =
+                (conversation.date * 1000L).formatMessageDate(
+                    context = child.context,
+                    hideTimeOnOtherDays = true,
+                    showCurrentYear = false,
+                )
         }
     }
 
@@ -191,10 +230,10 @@ abstract class BaseConversationsAdapter(
             }
 
             conversationDate.apply {
-                text = (conversation.date * 1000L).formatDateOrTime(
+                text = (conversation.date * 1000L).formatMessageDate(
                     context = context,
                     hideTimeOnOtherDays = true,
-                    showCurrentYear = false
+                    showCurrentYear = false,
                 )
 
                 setTextSize(TypedValue.COMPLEX_UNIT_PX, fontSize * 0.8f)
