@@ -90,6 +90,7 @@
     <string name="group_name">Group name</string>
     <string name="move_to_group">Move to group</string>
     <string name="remove_from_group">Remove from group</string>
+    <string name="removed_from_group">Moved to Messages</string>
     <string name="rename_group">Edit group</string>
     <string name="delete_group">Delete group</string>
     <string name="delete_group_confirmation">Delete the group \"%s\"? Its conversations return to Messages.</string>
@@ -100,7 +101,7 @@
     <string name="group_notification_sound">Notification sound</string>
     <string name="group_notification_vibration">Notification vibration</string>
     <string name="group_number_patterns">Number patterns</string>
-    <string name="group_number_patterns_hint">* matches any digits, for example *989000*. Matching ungrouped messages appear in this group.</string>
+    <string name="group_number_patterns_hint">* matches any digits, for example *989000*. Matching ungrouped messages appear in this group. Remove a conversation to show it in Messages again.</string>
     <string name="number_pattern">Number pattern</string>
     <string name="add_number_pattern">Add pattern</string>
     <string name="remove_number_pattern">Remove pattern</string>

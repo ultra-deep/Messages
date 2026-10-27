@@ -274,7 +274,7 @@ fun Context.moveBlockedMessageToInbox(entry: BlockedMessageEntry) {
         subject = "",
         body = entry.body,
         date = entry.dateMillis,
-        read = 1,
+        read = if (entry.read) 1 else 0,
         threadId = threadId,
         type = Sms.MESSAGE_TYPE_INBOX,
         subscriptionId = entry.subscriptionId,

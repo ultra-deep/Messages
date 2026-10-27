@@ -20,6 +20,7 @@ import org.fossify.messages.extensions.messagesDB
 import org.fossify.messages.extensions.noteBlockedUnreadChange
 import org.fossify.messages.extensions.saveBlockedMessage
 import org.fossify.messages.extensions.shouldUnarchive
+import org.fossify.messages.extensions.syncStoredUnreadCounts
 import org.fossify.messages.extensions.showReceivedMessageNotification
 import org.fossify.messages.extensions.updateConversationArchivedStatus
 import org.fossify.messages.helpers.ReceiverUtils.isIncomingMessageBlocked
@@ -137,8 +138,11 @@ class SmsReceiver : BroadcastReceiver() {
             subscriptionId = subscriptionId
         )
 
-        context.getConversations(threadId).firstOrNull()?.let { conv ->
-            runCatching { context.insertOrUpdateConversation(conv) }
+        val conversation = context.getConversations(threadId).firstOrNull()
+        if (conversation != null) {
+            runCatching { context.insertOrUpdateConversation(conversation) }
+        } else {
+            context.syncStoredUnreadCounts()
         }
 
         val senderName = context.getMyContactsCursor(favoritesOnly = false, withPhoneNumbersOnly = true).use {

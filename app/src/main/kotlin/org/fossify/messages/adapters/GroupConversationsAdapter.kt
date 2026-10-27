@@ -3,6 +3,7 @@ package org.fossify.messages.adapters
 import android.view.Menu
 import org.fossify.commons.dialogs.ConfirmationDialog
 import org.fossify.commons.extensions.notificationManager
+import org.fossify.commons.extensions.toast
 import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.views.MyRecyclerView
 import org.fossify.messages.R
@@ -67,8 +68,12 @@ class GroupConversationsAdapter(
     private fun removeFromGroup() {
         val threadIds = selectedConversations().map { it.threadId }
         ensureBackgroundThread {
-            activity.removeConversationsFromGroup(threadIds, groupId())
-            finishAfterChange()
+            activity.removeConversationsFromGroup(threadIds)
+            activity.runOnUiThread {
+                refreshConversations()
+                activity.toast(R.string.removed_from_group)
+                finishActMode()
+            }
         }
     }
 

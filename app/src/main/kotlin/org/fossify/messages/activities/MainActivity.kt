@@ -91,6 +91,7 @@ import org.fossify.messages.extensions.reloadBlockedConversations
 import org.fossify.messages.extensions.getConversations
 import org.fossify.messages.extensions.getMessages
 import org.fossify.messages.extensions.getUnreadCountsByThread
+import org.fossify.messages.extensions.syncStoredUnreadCounts
 import org.fossify.messages.extensions.unreadBlockedBadgeText
 import org.fossify.messages.extensions.insertOrUpdateConversation
 import org.fossify.messages.extensions.messagesDB
@@ -143,6 +144,8 @@ class MainActivity : SimpleActivity() {
     private var archivedConversations = ArrayList<Conversation>()
     private var inboxUnreadCount = 0
     private var groupedUnreadCount = 0
+    @Volatile
+    private var conversationReloadGeneration = 0
     private var knownBlockedUnreadCount: Int? = null
     private var knownArchivedUnreadCount: Int? = null
     private var knownGroupUnreadCounts = emptyMap<Long, Int>()
@@ -809,14 +812,15 @@ class MainActivity : SimpleActivity() {
             return stored.map { it.withVisibleUnreadCount() }
         }
         return stored.map { conversation ->
-            conversation.withVisibleUnreadCount(unreadMap[conversation.threadId] ?: 0)
+            conversation.withVisibleUnreadCount(unreadMap?.get(conversation.threadId) ?: 0)
         }
     }
 
-    private fun Conversation.withVisibleUnreadCount(liveCount: Int = unreadCount): Conversation {
+    private fun Conversation.withVisibleUnreadCount(liveCount: Int? = null): Conversation {
         val count = when {
-            liveCount > 0 -> liveCount
-            !read -> unreadCount.coerceAtLeast(1)
+            liveCount != null -> liveCount.coerceAtLeast(0)
+            unreadCount > 0 -> unreadCount
+            !read -> 1
             else -> 0
         }
         val isRead = count == 0
@@ -1085,7 +1089,6 @@ class MainActivity : SimpleActivity() {
                     syncGroupTabs(
                         groups = quickBadges.groups,
                         unreadCounts = quickBadges.unreadCounts,
-                        clearEmptyBadges = false,
                     )
                 }
             }
@@ -1161,12 +1164,15 @@ class MainActivity : SimpleActivity() {
 
     private fun loadQuickGroupBadges(): QuickGroupBadges {
         val groups = conversationGroupsDB.getAll()
-        val conversations = conversationsDB.getBadgeRows().map { it.toBadgeConversation() }
+        val unreadMap = getUnreadCountsByThread() ?: throw IllegalStateException("Unread counts unavailable")
+        val conversations = conversationsDB.getBadgeRows().map { row ->
+            row.toBadgeConversation().withVisibleUnreadCount(unreadMap[row.threadId] ?: 0)
+        }
         val explicit = conversations.filter { !it.isArchived && it.groupId != 0L }
         val ungrouped = conversations.filter { !it.isArchived && it.groupId == 0L }
         val grouped = explicit + ungrouped.patternGroupCopies(groups)
         val unreadCounts = grouped.groupBy { it.groupId }.mapValues { (_, items) ->
-            items.sumOf { it.withVisibleUnreadCount().unreadCount }
+            items.sumOf { it.unreadCount }
         }
         return QuickGroupBadges(groups, unreadCounts)
     }
@@ -1174,27 +1180,20 @@ class MainActivity : SimpleActivity() {
     private fun syncGroupTabs(
         groups: List<ConversationGroup>,
         unreadCounts: Map<Long, Int>,
-        clearEmptyBadges: Boolean = true,
     ) {
-        if (clearEmptyBadges) {
-            knownGroupUnreadCounts = unreadCounts
-        }
+        knownGroupUnreadCounts = unreadCounts
         rebuildConversationTabs(groups)
         groups.forEach { group ->
             val count = unreadCounts[group.id] ?: 0
-            if (count > 0 || clearEmptyBadges) {
-                val index = groupTabIndex(group.id)
-                if (index >= 0) {
-                    applyTabBadge(index, count, groupTabBadgeColor(group))
-                }
+            val index = groupTabIndex(group.id)
+            if (index >= 0) {
+                applyTabBadge(index, count, groupTabBadgeColor(group))
             }
         }
-        if (clearEmptyBadges) {
-            groupedUnreadCount = groups.sumOf { group ->
-                if (group.showNotification) unreadCounts[group.id] ?: 0 else 0
-            }
-            updateUnreadTotalBadge()
+        groupedUnreadCount = groups.sumOf { group ->
+            if (group.showNotification) unreadCounts[group.id] ?: 0 else 0
         }
+        updateUnreadTotalBadge()
     }
 
     private fun updateTabMode() {
@@ -1466,15 +1465,32 @@ class MainActivity : SimpleActivity() {
         }
     }
 
+    private fun isCurrentConversationReload(generation: Int): Boolean {
+        return generation == conversationReloadGeneration && !isDestroyed && !isFinishing
+    }
+
     private fun getCachedConversations() {
+        val generation = ++conversationReloadGeneration
         ensureBackgroundThread {
+            if (!isCurrentConversationReload(generation)) {
+                return@ensureBackgroundThread
+            }
+            syncStoredUnreadCounts { isCurrentConversationReload(generation) }
+            if (!isCurrentConversationReload(generation)) {
+                return@ensureBackgroundThread
+            }
             val groups = try {
                 conversationGroupsDB.getAll()
             } catch (_: Exception) {
                 emptyList()
             }
+            val unreadMap = try {
+                getUnreadCountsByThread()
+            } catch (_: Exception) {
+                null
+            }
             val conversations = try {
-                conversationsDB.getNonArchived().toMutableList() as ArrayList<Conversation>
+                ArrayList(conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap))
             } catch (_: Exception) {
                 ArrayList()
             }
@@ -1487,6 +1503,9 @@ class MainActivity : SimpleActivity() {
             val archivedForUi = archivedConversationsForUi()
 
             runOnUiThread {
+                if (!isCurrentConversationReload(generation)) {
+                    return@runOnUiThread
+                }
                 updateArchivedTabBadge(archivedForUi.sumOf { it.unreadCount })
                 if (showingArchivedTab) {
                     showArchivedConversations(ArrayList(archivedForUi))
@@ -1494,7 +1513,8 @@ class MainActivity : SimpleActivity() {
                 setupConversations(conversations.excludingPatternGroups(groups), cached = true)
                 refreshConversationGroups()
                 getNewConversations(
-                    (conversations + archived).toMutableList() as ArrayList<Conversation>
+                    cachedConversations = (conversations + archived).toMutableList() as ArrayList<Conversation>,
+                    generation = generation,
                 )
             }
             conversations.forEach {
@@ -1503,13 +1523,25 @@ class MainActivity : SimpleActivity() {
         }
     }
 
-    private fun getNewConversations(cachedConversations: ArrayList<Conversation>) {
+    private fun getNewConversations(
+        cachedConversations: ArrayList<Conversation>,
+        generation: Int,
+    ) {
         val privateCursor = getMyContactsCursor(favoritesOnly = false, withPhoneNumbersOnly = true)
         ensureBackgroundThread {
+            if (!isCurrentConversationReload(generation)) {
+                return@ensureBackgroundThread
+            }
             val privateContacts = MyContactsContentProvider.getSimpleContacts(this, privateCursor)
             val conversations = getConversations(privateContacts = privateContacts)
+            if (!isCurrentConversationReload(generation)) {
+                return@ensureBackgroundThread
+            }
 
             conversations.forEach { clonedConversation ->
+                if (!isCurrentConversationReload(generation)) {
+                    return@ensureBackgroundThread
+                }
                 val threadIds = cachedConversations.map { it.threadId }
                 if (!threadIds.contains(clonedConversation.threadId)) {
                     insertOrUpdateConversation(clonedConversation)
@@ -1518,6 +1550,9 @@ class MainActivity : SimpleActivity() {
             }
 
             cachedConversations.forEach { cachedConversation ->
+                if (!isCurrentConversationReload(generation)) {
+                    return@ensureBackgroundThread
+                }
                 val threadId = cachedConversation.threadId
 
                 val isTemporaryThread = cachedConversation.isScheduled
@@ -1543,6 +1578,9 @@ class MainActivity : SimpleActivity() {
             }
 
             cachedConversations.forEach { cachedConv ->
+                if (!isCurrentConversationReload(generation)) {
+                    return@ensureBackgroundThread
+                }
                 val conv = conversations.find {
                     it.threadId == cachedConv.threadId && !Conversation.areContentsTheSame(
                         old = cachedConv, new = it
@@ -1555,20 +1593,40 @@ class MainActivity : SimpleActivity() {
                 }
             }
 
+            if (!isCurrentConversationReload(generation)) {
+                return@ensureBackgroundThread
+            }
+            syncStoredUnreadCounts { isCurrentConversationReload(generation) }
+            if (!isCurrentConversationReload(generation)) {
+                return@ensureBackgroundThread
+            }
             val groups = try {
                 conversationGroupsDB.getAll()
             } catch (_: Exception) {
                 emptyList()
             }
-            val allConversations = conversationsDB.getNonArchived().excludingPatternGroups(groups)
+            val unreadMap = try {
+                getUnreadCountsByThread()
+            } catch (_: Exception) {
+                null
+            }
+            val allConversations = try {
+                conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap).excludingPatternGroups(groups)
+            } catch (_: Exception) {
+                ArrayList()
+            }
             val archivedForUi = archivedConversationsForUi()
             runOnUiThread {
+                if (!isCurrentConversationReload(generation)) {
+                    return@runOnUiThread
+                }
                 updateArchivedTabBadge(archivedForUi.sumOf { it.unreadCount })
                 if (showingArchivedTab) {
                     showArchivedConversations(ArrayList(archivedForUi))
                 }
                 setupConversations(allConversations)
                 refreshConversationGroups()
+                refreshBlockedTab()
             }
 
             if (config.appRunCount == 1) {
@@ -1898,6 +1956,7 @@ class MainActivity : SimpleActivity() {
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun refreshConversations(@Suppress("unused") event: Events.RefreshConversations) {
+        refreshBlockedTab()
         initMessenger()
     }
 

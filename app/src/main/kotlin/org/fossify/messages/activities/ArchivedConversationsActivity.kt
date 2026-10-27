@@ -18,6 +18,7 @@ import org.fossify.messages.adapters.ArchivedConversationsAdapter
 import org.fossify.messages.databinding.ActivityArchivedConversationsBinding
 import org.fossify.messages.extensions.config
 import org.fossify.messages.extensions.conversationsDB
+import org.fossify.messages.extensions.syncStoredUnreadCounts
 import org.fossify.messages.extensions.removeAllArchivedConversations
 import org.fossify.messages.helpers.THREAD_ID
 import org.fossify.messages.helpers.THREAD_TITLE
@@ -76,6 +77,7 @@ class ArchivedConversationsActivity : SimpleActivity() {
 
     private fun loadArchivedConversations() {
         ensureBackgroundThread {
+            syncStoredUnreadCounts()
             val conversations = try {
                 conversationsDB.getAllArchived().toMutableList() as ArrayList<Conversation>
             } catch (e: Exception) {

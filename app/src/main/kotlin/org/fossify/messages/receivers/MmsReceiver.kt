@@ -20,6 +20,7 @@ import org.fossify.messages.extensions.messagesDB
 import org.fossify.messages.extensions.noteBlockedUnreadChange
 import org.fossify.messages.extensions.saveBlockedMessage
 import org.fossify.messages.extensions.shouldUnarchive
+import org.fossify.messages.extensions.syncStoredUnreadCounts
 import org.fossify.messages.extensions.showReceivedMessageNotification
 import org.fossify.messages.extensions.updateConversationArchivedStatus
 import org.fossify.messages.helpers.ReceiverUtils.isIncomingMessageBlocked
@@ -108,8 +109,12 @@ class MmsReceiver : MmsReceivedReceiver() {
             bitmap = glideBitmap
         )
 
-        val conversation = context.getConversations(mms.threadId).firstOrNull() ?: return
-        runCatching { context.insertOrUpdateConversation(conversation) }
+        val conversation = context.getConversations(mms.threadId).firstOrNull()
+        if (conversation != null) {
+            runCatching { context.insertOrUpdateConversation(conversation) }
+        } else {
+            context.syncStoredUnreadCounts()
+        }
         if (context.shouldUnarchive()) {
             context.updateConversationArchivedStatus(mms.threadId, false)
         }

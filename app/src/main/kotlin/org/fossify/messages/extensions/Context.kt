@@ -328,32 +328,69 @@ fun Context.getMMSSender(msgId: Long): String {
     return ""
 }
 
-fun Context.getUnreadCountsByThread(): Map<Long, Int> {
-    val result = HashMap<Long, Int>(128)
-
-    fun bump(id: Long) {
-        result[id] = (result[id] ?: 0) + 1
+fun Context.getUnreadCountsByThread(): Map<Long, Int>? {
+    return try {
+        val result = HashMap<Long, Int>(128)
+        fun count(uri: Uri, column: String, selection: String) {
+            val cursor = contentResolver.query(uri, arrayOf(column), selection, null, null)
+                ?: throw IllegalStateException("Unread message query failed")
+            cursor.use {
+                if (!it.moveToFirst()) {
+                    return
+                }
+                do {
+                    val id = it.getLongValue(column)
+                    result[id] = (result[id] ?: 0) + 1
+                } while (it.moveToNext())
+            }
+        }
+        count(
+            uri = Sms.CONTENT_URI,
+            column = Sms.THREAD_ID,
+            selection = "${Sms.READ}=0 AND ${Sms.TYPE}=${Sms.MESSAGE_TYPE_INBOX}",
+        )
+        count(
+            uri = Mms.CONTENT_URI,
+            column = Mms.THREAD_ID,
+            selection = "${Mms.READ}=0 AND ${Mms.MESSAGE_BOX}=${Mms.MESSAGE_BOX_INBOX}",
+        )
+        result
+    } catch (_: Exception) {
+        null
     }
+}
 
-    // Unread SMS
-    queryCursor(
-        uri = Sms.CONTENT_URI,
-        projection = arrayOf(Sms.THREAD_ID),
-        selection = "${Sms.READ}=0 AND ${Sms.TYPE}=${Sms.MESSAGE_TYPE_INBOX}",
-        selectionArgs = null,
-        showErrors = false
-    ) { bump(it.getLongValue(Sms.THREAD_ID)) }
-
-    // Unread MMS
-    queryCursor(
-        uri = Mms.CONTENT_URI,
-        projection = arrayOf(Mms.THREAD_ID),
-        selection = "${Mms.READ}=0 AND ${Mms.MESSAGE_BOX}=${Mms.MESSAGE_BOX_INBOX}",
-        selectionArgs = null,
-        showErrors = false
-    ) { bump(it.getLongValue(Mms.THREAD_ID)) }
-
-    return result
+fun Context.syncStoredUnreadCounts(stillCurrent: () -> Boolean = { true }) {
+    if (!stillCurrent()) {
+        return
+    }
+    val unreadMap = try {
+        getUnreadCountsByThread()
+    } catch (_: Exception) {
+        null
+    } ?: return
+    if (!stillCurrent()) {
+        return
+    }
+    val rows = try {
+        conversationsDB.getBadgeRows()
+    } catch (_: Exception) {
+        return
+    }
+    rows.forEach { row ->
+        if (!stillCurrent()) {
+            return
+        }
+        val live = unreadMap[row.threadId] ?: 0
+        val isRead = live == 0
+        if (row.unreadCount == live && row.read == isRead) {
+            return@forEach
+        }
+        try {
+            conversationsDB.updateUnreadState(row.threadId, isRead, live)
+        } catch (_: Exception) {
+        }
+    }
 }
 
 fun Context.getConversations(
@@ -433,10 +470,16 @@ fun Context.getConversations(
                     phoneNumbers.first()
                 ) else ""
             val isGroupConversation = phoneNumbers.size > 1
-            val read = cursor.getIntValue(Threads.READ) == 1
             val archived =
                 if (archiveAvailable) cursor.getIntValue(Threads.ARCHIVED) == 1 else false
-            val unreadCount = if (!read) unreadMap[id] ?: 0 else 0
+            val unreadCount = if (unreadMap != null) {
+                unreadMap[id] ?: 0
+            } else if (cursor.getIntValue(Threads.READ) == 0) {
+                1
+            } else {
+                0
+            }
+            val read = unreadCount == 0
             val conversation = Conversation(
                 threadId = id,
                 snippet = snippet,
@@ -1046,7 +1089,12 @@ fun Context.markThreadMessagesUnread(threadId: Long) {
         val selectionArgs = arrayOf(threadId.toString())
         contentResolver.update(uri, contentValues, selection, selectionArgs)
     }
-    conversationsDB.markUnread(threadId)
+    val unread = try {
+        getUnreadCountsByThread()?.get(threadId) ?: 1
+    } catch (_: Exception) {
+        1
+    }
+    conversationsDB.updateUnreadState(threadId, read = false, unreadCount = unread.coerceAtLeast(1))
 } 
 
 @SuppressLint("NewApi")

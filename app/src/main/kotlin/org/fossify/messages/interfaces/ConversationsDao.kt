@@ -68,6 +68,9 @@ interface ConversationsDao {
     @Query("UPDATE conversations SET read = 0, unread_count = CASE WHEN unread_count > 0 THEN unread_count ELSE 1 END WHERE thread_id = :threadId")
     fun markUnread(threadId: Long)
 
+    @Query("UPDATE conversations SET read = :read, unread_count = :unreadCount WHERE thread_id = :threadId")
+    fun updateUnreadState(threadId: Long, read: Boolean, unreadCount: Int)
+
     @Query("UPDATE conversations SET archived = 1, group_id = 0 WHERE thread_id = :threadId")
     fun moveToArchive(threadId: Long)
 
@@ -79,9 +82,6 @@ interface ConversationsDao {
             "ignore_number_pattern = 0 WHERE thread_id = :threadId"
     )
     fun moveToGroup(threadId: Long, groupId: Long)
-
-    @Query("UPDATE conversations SET group_id = 0 WHERE thread_id = :threadId")
-    fun removeFromGroup(threadId: Long)
 
     @Query("UPDATE conversations SET group_id = 0, ignore_number_pattern = 1 WHERE thread_id = :threadId")
     fun removeFromGroupAndIgnorePattern(threadId: Long)

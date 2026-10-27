@@ -15,7 +15,9 @@ import org.fossify.messages.R
 import org.fossify.messages.activities.SimpleActivity
 import org.fossify.messages.dialogs.RenameConversationDialog
 import org.fossify.messages.extensions.config
+import org.fossify.messages.extensions.conversationsDB
 import org.fossify.messages.extensions.deleteConversation
+import org.fossify.messages.extensions.invalidateBlockedConversationCache
 import org.fossify.messages.extensions.dialNumber
 import org.fossify.messages.extensions.launchConversationDetails
 import org.fossify.messages.extensions.markThreadMessagesRead
@@ -23,6 +25,7 @@ import org.fossify.messages.extensions.markThreadMessagesUnread
 import org.fossify.messages.extensions.promptMoveConversationsToGroup
 import org.fossify.messages.extensions.renameConversation
 import org.fossify.messages.extensions.updateConversationArchivedStatus
+import org.fossify.messages.helpers.refreshBlockedMessages
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.messaging.isShortCodeWithLetters
 import org.fossify.messages.models.Conversation
@@ -109,10 +112,13 @@ class ConversationsAdapter(
         val newList = currentList.toMutableList().apply { removeAll(numbersToBlock) }
 
         ensureBackgroundThread {
-            numbersToBlock.map { it.phoneNumber }.forEach { number ->
-                activity.addBlockedNumber(number)
+            numbersToBlock.forEach { conversation ->
+                activity.addBlockedNumber(conversation.phoneNumber)
+                activity.conversationsDB.deleteThreadId(conversation.threadId)
             }
-
+            invalidateBlockedConversationCache()
+            refreshBlockedMessages()
+            refreshConversations()
             activity.runOnUiThread {
                 submitList(newList)
                 finishActMode()

@@ -25,6 +25,7 @@ import org.fossify.messages.extensions.shortcutHelper
 import org.fossify.messages.messaging.isShortCodeWithLetters
 import org.fossify.messages.receivers.DeleteSmsReceiver
 import org.fossify.messages.receivers.DirectReplyReceiver
+import org.fossify.messages.receivers.MarkAsReadReceiver
 
 class NotificationHelper(private val context: Context) {
 
@@ -88,6 +89,18 @@ class NotificationHelper(private val context: Context) {
                 context,
                 notificationId,
                 deleteSmsIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+        val markAsReadIntent = Intent(context, MarkAsReadReceiver::class.java).apply {
+            action = MARK_AS_READ
+            putExtra(THREAD_ID, threadId)
+        }
+        val markAsReadPendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                notificationId,
+                markAsReadIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
@@ -168,6 +181,11 @@ class NotificationHelper(private val context: Context) {
             builder.addAction(replyAction)
         }
 
+        builder.addAction(
+            org.fossify.commons.R.drawable.ic_check_vector,
+            context.getString(R.string.mark_as_read),
+            markAsReadPendingIntent
+        )
         builder.addAction(
             org.fossify.commons.R.drawable.ic_delete_vector,
             context.getString(R.string.trash),

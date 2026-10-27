@@ -135,11 +135,13 @@ import org.fossify.messages.extensions.getBlockedConversationMessages
 import org.fossify.messages.extensions.getMessages
 import org.fossify.messages.extensions.promptMoveConversationsToGroup
 import org.fossify.messages.extensions.removeConversationsFromGroup
+import org.fossify.messages.extensions.visibleGroupId
 import org.fossify.messages.extensions.getSmsDraft
 import org.fossify.messages.extensions.getThreadId
 import org.fossify.messages.extensions.getThreadParticipants
 import org.fossify.messages.extensions.getThreadTitle
 import org.fossify.messages.extensions.indexOfFirstOrNull
+import org.fossify.messages.extensions.invalidateBlockedConversationCache
 import org.fossify.messages.extensions.isGifMimeType
 import org.fossify.messages.extensions.isImageMimeType
 import org.fossify.messages.extensions.launchConversationDetails
@@ -188,6 +190,7 @@ import org.fossify.messages.helpers.THREAD_NUMBER
 import org.fossify.messages.helpers.THREAD_TEXT
 import org.fossify.messages.helpers.THREAD_TITLE
 import org.fossify.messages.helpers.generateRandomId
+import org.fossify.messages.helpers.refreshBlockedMessages
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.helpers.refreshMessages
 import org.fossify.messages.messaging.cancelScheduleSendPendingIntent
@@ -221,6 +224,7 @@ class ThreadActivity : SimpleActivity() {
     private var threadItems: List<ThreadItem> = emptyList()
     private var bus: EventBus? = null
     private var conversation: Conversation? = null
+    private var shownInGroupId = 0L
     private var participants = ArrayList<SimpleContact>()
     private var privateContacts = ArrayList<SimpleContact>()
     private var messages: List<Message> = emptyList()
@@ -321,6 +325,7 @@ class ThreadActivity : SimpleActivity() {
             }
 
             markThreadMessagesRead(threadId)
+            refreshConversations()
         }
 
         val bottomBarColor = getBottomBarColor()
@@ -384,7 +389,7 @@ class ThreadActivity : SimpleActivity() {
                 threadItems.isNotEmpty() && !isRecycleBin && !isBlockedConversation
             findItem(R.id.remove_from_group).isVisible =
                 threadItems.isNotEmpty() && !isRecycleBin && !isBlockedConversation &&
-                    (conversation?.groupId ?: 0L) != 0L
+                    shownInGroupId != 0L
             findItem(R.id.rename_conversation).isVisible =
                 participants.size > 1 && conversation != null && !isRecycleBin && !isBlockedConversation
             findItem(R.id.conversation_details).isVisible = conversation != null && !isRecycleBin && !isBlockedConversation
@@ -762,6 +767,9 @@ class ThreadActivity : SimpleActivity() {
                     cancelScheduleSendPendingIntent(messageId)
                 } else {
                     if (toRecycleBin) {
+                        if (!message.read) {
+                            markMessageRead(messageId, message.isMMS)
+                        }
                         moveMessageToRecycleBin(messageId)
                     } else if (fromRecycleBin) {
                         restoreMessageFromRecycleBin(messageId)
@@ -780,6 +788,9 @@ class ThreadActivity : SimpleActivity() {
             createTemporaryThread(scheduledMessage, fakeThreadId, conversation)
             updateScheduledMessagesThreadId(messages, fakeThreadId)
             threadId = fakeThreadId
+        }
+        if (!isBlockedConversation) {
+            refreshConversations()
         }
     }
 
@@ -889,7 +900,7 @@ class ThreadActivity : SimpleActivity() {
             return
         }
         ensureBackgroundThread {
-            conversation = conversationsDB.getConversationWithThreadId(threadId)
+            reloadConversationGroupState()
             runOnUiThread {
                 if (!isDestroyed && !isFinishing) {
                     refreshMenuItems()
@@ -1212,8 +1223,11 @@ class ThreadActivity : SimpleActivity() {
                 numbers.forEach {
                     addBlockedNumber(it)
                 }
+                conversationsDB.deleteThreadId(threadId)
+                invalidateBlockedConversationCache()
+                refreshBlockedMessages()
                 refreshConversations()
-                finish()
+                runOnUiThread { finish() }
             }
         }
     }
@@ -1283,10 +1297,10 @@ class ThreadActivity : SimpleActivity() {
     private fun moveConversationToGroup() {
         promptMoveConversationsToGroup(
             threadIds = listOf(threadId),
-            currentGroupId = conversation?.groupId ?: 0L,
+            currentGroupId = shownInGroupId,
         ) {
             ensureBackgroundThread {
-                conversation = conversationsDB.getConversationWithThreadId(threadId)
+                reloadConversationGroupState()
                 runOnUiThread {
                     if (!isDestroyed && !isFinishing) {
                         refreshMenuItems()
@@ -1297,12 +1311,18 @@ class ThreadActivity : SimpleActivity() {
         }
     }
 
+    private fun reloadConversationGroupState() {
+        conversation = conversationsDB.getConversationWithThreadId(threadId) ?: conversation
+        shownInGroupId = conversation?.let { visibleGroupId(it) } ?: 0L
+    }
+
     private fun removeConversationFromGroup() {
         ensureBackgroundThread {
-            removeConversationsFromGroup(listOf(threadId), conversation?.groupId ?: 0L)
-            conversation = conversationsDB.getConversationWithThreadId(threadId) ?: conversation
+            removeConversationsFromGroup(listOf(threadId))
+            reloadConversationGroupState()
             runOnUiThread {
                 refreshConversations()
+                toast(R.string.removed_from_group)
                 if (!isDestroyed && !isFinishing) {
                     refreshMenuItems()
                     refreshConversationBackground()

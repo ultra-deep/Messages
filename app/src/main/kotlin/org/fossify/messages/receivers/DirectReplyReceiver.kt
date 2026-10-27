@@ -15,6 +15,7 @@ import org.fossify.messages.extensions.*
 import org.fossify.messages.helpers.REPLY
 import org.fossify.messages.helpers.THREAD_ID
 import org.fossify.messages.helpers.THREAD_NUMBER
+import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.messaging.sendMessageCompat
 
 class DirectReplyReceiver : BroadcastReceiver() {
@@ -77,7 +78,7 @@ class DirectReplyReceiver : BroadcastReceiver() {
                 }
 
                 context.markThreadMessagesRead(threadId)
-                context.conversationsDB.markRead(threadId)
+                refreshConversations()
             }
         }
     }

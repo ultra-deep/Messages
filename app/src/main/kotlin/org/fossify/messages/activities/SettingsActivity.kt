@@ -42,6 +42,7 @@ import org.fossify.messages.extensions.showBackgroundColorPreview
 import org.fossify.messages.extensions.toBackgroundColorLabel
 import org.fossify.messages.extensions.emptyMessagesRecycleBin
 import org.fossify.messages.extensions.getUnreadBlockedMessageCount
+import org.fossify.messages.extensions.invalidateBlockedConversationCache
 import org.fossify.messages.extensions.messagesDB
 import org.fossify.messages.extensions.unreadBlockedBadgeText
 import org.fossify.messages.helpers.FILE_SIZE_100_KB
@@ -56,6 +57,7 @@ import org.fossify.messages.helpers.LOCK_SCREEN_NOTHING
 import org.fossify.messages.helpers.LOCK_SCREEN_SENDER
 import org.fossify.messages.helpers.LOCK_SCREEN_SENDER_MESSAGE
 import org.fossify.messages.helpers.MessagesImporter
+import org.fossify.messages.helpers.refreshBlockedMessages
 import org.fossify.messages.helpers.refreshConversations
 import java.util.Locale
 import kotlin.system.exitProcess
@@ -140,6 +142,8 @@ class SettingsActivity : SimpleActivity() {
         if (
             blockedNumbersAtPause != -1 && blockedNumbersAtPause != getBlockedNumbers().hashCode()
         ) {
+            invalidateBlockedConversationCache()
+            refreshBlockedMessages()
             refreshConversations()
         }
 

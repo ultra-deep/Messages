@@ -34,8 +34,13 @@ class DeleteSmsReceiver : BroadcastReceiver() {
         ensureBackgroundThread {
             moveMessagesToRecycleBin(context, threadId, targets)
             updateConversationAfterTrash(context, threadId, targets)
-            if ((context.getUnreadCountsByThread()[threadId] ?: 0) == 0) {
-                context.conversationsDB.markRead(threadId)
+            val unread = context.getUnreadCountsByThread()?.get(threadId)
+            if (unread != null) {
+                context.conversationsDB.updateUnreadState(
+                    threadId,
+                    read = unread == 0,
+                    unreadCount = unread,
+                )
             }
             refreshMessages()
             refreshConversations()
