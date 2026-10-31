@@ -47,6 +47,7 @@ import org.fossify.commons.helpers.FontHelper
 import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.views.MyRecyclerView
+import org.fossify.commons.views.MyTextView
 import org.fossify.messages.R
 import org.fossify.messages.activities.NewConversationActivity
 import org.fossify.messages.activities.SimpleActivity
@@ -88,6 +89,7 @@ import org.fossify.messages.helpers.generateStableId
 import org.fossify.messages.helpers.setupAudio
 import org.fossify.messages.helpers.setupDocumentPreview
 import org.fossify.messages.helpers.setupVCardPreview
+import org.fossify.messages.helpers.standaloneEmojiCount
 import org.fossify.messages.models.Attachment
 import org.fossify.messages.models.Message
 import org.fossify.messages.models.ThreadItem
@@ -117,6 +119,9 @@ class ThreadAdapter(
         private const val SIM_BITS = 21
         private const val SIM_MASK = (1L shl SIM_BITS) - 1
     }
+
+    private val messageBubblePadding =
+        activity.resources.getDimensionPixelSize(org.fossify.commons.R.dimen.normal_margin)
 
     init {
         setupDragListener(true)
@@ -399,9 +404,9 @@ class ThreadAdapter(
     private fun setupView(holder: ViewHolder, view: View, message: Message) {
         ItemMessageBinding.bind(view).apply {
             threadMessageHolder.isSelected = selectedKeys.contains(message.getSelectionKey())
+            val emojiCount = message.body.standaloneEmojiCount()
             threadMessageBody.apply {
                 text = message.body
-                setTextSize(TypedValue.COMPLEX_UNIT_PX, fontSize)
                 beVisibleIf(message.body.isNotEmpty())
                 setOnLongClickListener {
                     holder.viewLongClicked()
@@ -414,9 +419,9 @@ class ThreadAdapter(
             }
 
             if (message.isReceivedMessage()) {
-                setupReceivedMessageView(messageBinding = this, message = message)
+                setupReceivedMessageView(messageBinding = this, message = message, emojiCount = emojiCount)
             } else {
-                setupSentMessageView(messageBinding = this, message = message)
+                setupSentMessageView(messageBinding = this, message = message, emojiCount = emojiCount)
             }
 
             threadMessageAttachmentsHolder.removeAllViews()
@@ -441,7 +446,7 @@ class ThreadAdapter(
         }
     }
 
-    private fun setupReceivedMessageView(messageBinding: ItemMessageBinding, message: Message) {
+    private fun setupReceivedMessageView(messageBinding: ItemMessageBinding, message: Message, emojiCount: Int?) {
         messageBinding.apply {
             with(ConstraintSet()) {
                 clone(threadMessageHolder)
@@ -460,11 +465,13 @@ class ThreadAdapter(
                 }
             }
 
-            threadMessageBody.apply {
-                background = AppCompatResources.getDrawable(activity, R.drawable.item_received_background)
-                setTextColor(textColor)
-                setLinkTextColor(activity.getProperPrimaryColor())
-            }
+            styleMessageBody(
+                bodyView = threadMessageBody,
+                isReceived = true,
+                emojiCount = emojiCount,
+                primaryColor = activity.getProperPrimaryColor(),
+                contrastColor = textColor
+            )
 
             if (!activity.isFinishing && !activity.isDestroyed) {
                 val contactLetterIcon = SimpleContactsHelper(activity).getContactLetterIcon(message.senderName)
@@ -485,7 +492,7 @@ class ThreadAdapter(
         }
     }
 
-    private fun setupSentMessageView(messageBinding: ItemMessageBinding, message: Message) {
+    private fun setupSentMessageView(messageBinding: ItemMessageBinding, message: Message, emojiCount: Int?) {
         messageBinding.apply {
             with(ConstraintSet()) {
                 clone(threadMessageHolder)
@@ -503,15 +510,19 @@ class ThreadAdapter(
                     addRule(RelativeLayout.ALIGN_PARENT_END)
                 }
 
-                background = AppCompatResources.getDrawable(activity, R.drawable.item_sent_background)
-                background.applyColorFilter(primaryColor)
-                setTextColor(contrastColor)
-                setLinkTextColor(contrastColor)
+                styleMessageBody(
+                    bodyView = this,
+                    isReceived = false,
+                    emojiCount = emojiCount,
+                    primaryColor = primaryColor,
+                    contrastColor = contrastColor
+                )
 
+                val iconColor = if (emojiCount != null) textColor else contrastColor
                 if (message.isScheduled) {
                     typeface = Typeface.create(FontHelper.getTypeface(activity), Typeface.ITALIC)
                     val scheduledDrawable = AppCompatResources.getDrawable(activity, org.fossify.commons.R.drawable.ic_clock_vector)?.apply {
-                        applyColorFilter(contrastColor)
+                        applyColorFilter(iconColor)
                         val size = lineHeight
                         setBounds(0, 0, size, size)
                     }
@@ -522,6 +533,45 @@ class ThreadAdapter(
                     setCompoundDrawables(null, null, null, null)
                 }
             }
+        }
+    }
+
+    private fun styleMessageBody(
+        bodyView: MyTextView,
+        isReceived: Boolean,
+        emojiCount: Int?,
+        primaryColor: Int,
+        contrastColor: Int
+    ) {
+        bodyView.apply {
+            if (emojiCount != null) {
+                background = null
+                setPadding(0, 0, 0, 0)
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, fontSize * emojiSizeMultiplier(emojiCount))
+                setTextColor(textColor)
+                setLinkTextColor(activity.getProperPrimaryColor())
+            } else {
+                setPadding(messageBubblePadding, messageBubblePadding, messageBubblePadding, messageBubblePadding)
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, fontSize)
+                if (isReceived) {
+                    background = AppCompatResources.getDrawable(activity, R.drawable.item_received_background)
+                    setTextColor(textColor)
+                    setLinkTextColor(primaryColor)
+                } else {
+                    background = AppCompatResources.getDrawable(activity, R.drawable.item_sent_background)
+                    background.applyColorFilter(primaryColor)
+                    setTextColor(contrastColor)
+                    setLinkTextColor(contrastColor)
+                }
+            }
+        }
+    }
+
+    private fun emojiSizeMultiplier(emojiCount: Int): Float {
+        return when (emojiCount) {
+            1 -> 3f
+            2 -> 2.5f
+            else -> 2f
         }
     }
 

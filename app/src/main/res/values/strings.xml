@@ -146,6 +146,7 @@
     <string name="empty_blocked_messages">Delete all blocked messages</string>
     <string name="empty_blocked_messages_confirmation">Are you sure you want to delete all blocked messages? They will be permanently lost.</string>
     <string name="delete_blocked_messages_confirmation">Are you sure you want to delete the selected blocked messages? They will be permanently lost.</string>
+    <string name="unblock_confirmation">Are you sure you want to unblock \"%s\"?</string>
     <string name="move_blocked_message_to_inbox">Move to inbox</string>
     <string name="lock_screen_visibility">Lock screen notification visibility</string>
     <string name="sender_and_message">Sender and message</string>

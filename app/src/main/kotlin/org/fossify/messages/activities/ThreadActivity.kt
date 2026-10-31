@@ -2281,6 +2281,11 @@ class ThreadActivity : SimpleActivity() {
 
     private fun refreshConversationBackground() {
         if (isBlockedConversation) {
+            val color = config.blockedMessagesBackgroundColor
+            if (conversationBackgroundColor != color) {
+                conversationBackgroundColor = color
+                applyThreadBackground()
+            }
             return
         }
         ensureBackgroundThread {

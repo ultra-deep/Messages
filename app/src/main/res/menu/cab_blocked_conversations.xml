@@ -21,4 +21,8 @@
         android:id="@+id/cab_mark_as_unread"
         android:title="@string/mark_as_unread"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/cab_unblock_number"
+        android:title="@string/unblock"
+        app:showAsAction="never" />
 </menu>

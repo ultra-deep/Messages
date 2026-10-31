@@ -285,6 +285,7 @@ class MainActivity : SimpleActivity() {
             findItem(R.id.show_archived).isVisible = config.isArchiveAvailable
             findItem(R.id.empty_archive).isVisible =
                 showingArchivedTab && archivedConversations.isNotEmpty()
+            findItem(R.id.show_blocked_messages).isVisible = !showingBlockedTab
             findItem(R.id.rename_group).isVisible = selectedGroupId != 0L
             findItem(R.id.delete_group).isVisible = selectedGroupId != 0L
         }
