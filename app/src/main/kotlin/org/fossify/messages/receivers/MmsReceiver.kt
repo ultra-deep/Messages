@@ -9,7 +9,9 @@ import org.fossify.commons.extensions.showErrorToast
 import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.messages.R
+import org.fossify.messages.extensions.conversationsDB
 import org.fossify.messages.extensions.deleteMessage
+import org.fossify.messages.extensions.deleteThreadIfNoProviderMessages
 import org.fossify.messages.extensions.getConversations
 import org.fossify.messages.extensions.getLatestMMS
 import org.fossify.messages.extensions.getMMS
@@ -59,10 +61,17 @@ class MmsReceiver : MmsReceivedReceiver() {
                     if (mms.id != 0L) {
                         context.deleteMessage(mms.id, isMMS = true)
                     }
+                    // Library already wrote the MMS (and created a thread). Remove the
+                    // orphan thread so it does not appear as an empty inbox conversation.
+                    context.deleteThreadIfNoProviderMessages(mms.threadId)
+                    refreshConversations()
                 } else {
+                    // Keep the MMS in the provider for the Blocked tab, but never in inbox.
+                    context.conversationsDB.deleteThreadId(mms.threadId)
                     noteBlockedUnreadChange(1)
                     invalidateBlockedConversationCache()
                     refreshBlockedMessages()
+                    refreshConversations()
                 }
                 return@ensureBackgroundThread
             }

@@ -87,6 +87,7 @@ import org.fossify.messages.extensions.countUnreadBlockedMessages
 import org.fossify.messages.extensions.peekBlockedConversations
 import org.fossify.messages.extensions.peekUnreadBlockedCount
 import org.fossify.messages.extensions.reloadBlockedConversations
+import org.fossify.messages.extensions.excludingBlockedSenders
 import org.fossify.messages.extensions.getConversations
 import org.fossify.messages.extensions.getMessages
 import org.fossify.messages.extensions.getUnreadCountsByThread
@@ -96,6 +97,7 @@ import org.fossify.messages.extensions.insertOrUpdateConversation
 import org.fossify.messages.extensions.messagesDB
 import org.fossify.messages.helpers.ConversationTab
 import org.fossify.messages.helpers.excludingPatternGroups
+import org.fossify.messages.helpers.isBlockedSender
 import org.fossify.messages.helpers.patternGroupCopies
 import org.fossify.messages.helpers.resolveConversationTabs
 import org.fossify.messages.helpers.IS_BLOCKED_CONVERSATION
@@ -692,7 +694,12 @@ class MainActivity : SimpleActivity() {
     }
 
     private fun showBlockedConversations(conversations: ArrayList<Conversation>) {
-        val hasConversations = conversations.isNotEmpty()
+        val sortedConversations = conversations.sortedWith(
+            compareByDescending<Conversation> {
+                config.pinnedConversations.contains(it.threadId.toString())
+            }.thenByDescending { it.date }
+        ).toMutableList() as ArrayList<Conversation>
+        val hasConversations = sortedConversations.isNotEmpty()
         binding.conversationsProgressBar.hide()
         binding.noConversationsPlaceholder.text = getString(R.string.no_blocked_messages)
         binding.noConversationsPlaceholder.beVisibleIf(!hasConversations)
@@ -702,7 +709,7 @@ class MainActivity : SimpleActivity() {
         val currentAdapter = binding.conversationsList.adapter
         if (currentAdapter is BlockedConversationsAdapter) {
             applyConversationListBackground()
-            currentAdapter.updateConversations(conversations)
+            currentAdapter.updateConversations(sortedConversations)
             return
         }
 
@@ -714,7 +721,7 @@ class MainActivity : SimpleActivity() {
         ).apply {
             binding.conversationsList.adapter = this
             applyConversationListBackground()
-            updateConversations(conversations)
+            updateConversations(sortedConversations)
             if (areSystemAnimationsEnabled) {
                 binding.conversationsList.scheduleLayoutAnimation()
             }
@@ -1134,7 +1141,7 @@ class MainActivity : SimpleActivity() {
             emptyList()
         }
         val ungrouped = try {
-            conversationsDB.getNonArchived()
+            excludingBlockedSenders(conversationsDB.getNonArchived())
         } catch (_: Exception) {
             emptyList()
         }
@@ -1492,7 +1499,11 @@ class MainActivity : SimpleActivity() {
                 null
             }
             val conversations = try {
-                ArrayList(conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap))
+                ArrayList(
+                    excludingBlockedSenders(
+                        conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap)
+                    )
+                )
             } catch (_: Exception) {
                 ArrayList()
             }
@@ -1544,6 +1555,13 @@ class MainActivity : SimpleActivity() {
                 if (!isCurrentConversationReload(generation)) {
                     return@ensureBackgroundThread
                 }
+                if (
+                    !clonedConversation.isGroupConversation &&
+                    isBlockedSender(clonedConversation.phoneNumber)
+                ) {
+                    conversationsDB.deleteThreadId(clonedConversation.threadId)
+                    return@forEach
+                }
                 val threadIds = cachedConversations.map { it.threadId }
                 if (!threadIds.contains(clonedConversation.threadId)) {
                     insertOrUpdateConversation(clonedConversation)
@@ -1551,11 +1569,19 @@ class MainActivity : SimpleActivity() {
                 }
             }
 
-            cachedConversations.forEach { cachedConversation ->
+            cachedConversations.toList().forEach { cachedConversation ->
                 if (!isCurrentConversationReload(generation)) {
                     return@ensureBackgroundThread
                 }
                 val threadId = cachedConversation.threadId
+                if (
+                    !cachedConversation.isGroupConversation &&
+                    isBlockedSender(cachedConversation.phoneNumber)
+                ) {
+                    conversationsDB.deleteThreadId(threadId)
+                    cachedConversations.removeAll { it.threadId == threadId }
+                    return@forEach
+                }
 
                 val isTemporaryThread = cachedConversation.isScheduled
                 val isConversationDeleted = !conversations.map { it.threadId }.contains(threadId)
@@ -1613,7 +1639,9 @@ class MainActivity : SimpleActivity() {
                 null
             }
             val allConversations = try {
-                conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap).excludingPatternGroups(groups)
+                excludingBlockedSenders(
+                    conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap)
+                ).excludingPatternGroups(groups)
             } catch (_: Exception) {
                 ArrayList()
             }

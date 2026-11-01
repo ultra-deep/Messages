@@ -4,6 +4,18 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="AppCompatResource,AlwaysShowAction">
     <item
+        android:id="@+id/cab_pin_conversation"
+        android:icon="@drawable/ic_pin_vector"
+        android:showAsAction="always"
+        android:title="@string/pin_conversation"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/cab_unpin_conversation"
+        android:icon="@drawable/ic_unpin_vector"
+        android:showAsAction="always"
+        android:title="@string/unpin_conversation"
+        app:showAsAction="always" />
+    <item
         android:id="@+id/cab_unarchive"
         android:icon="@drawable/ic_unarchive_vector"
         android:showAsAction="ifRoom"

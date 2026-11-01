@@ -26,6 +26,7 @@ class BlockedConversationsAdapter(
     override fun prepareActionMode(menu: Menu) {
         menu.findItem(R.id.cab_unblock_number).title =
             activity.getString(org.fossify.commons.R.string.unblock)
+        checkPinBtnVisibility(menu)
     }
 
     override fun actionItemPressed(id: Int) {
@@ -39,6 +40,8 @@ class BlockedConversationsAdapter(
             R.id.cab_mark_as_unread -> markSelected(read = false)
             R.id.cab_delete -> askConfirmDelete()
             R.id.cab_unblock_number -> askConfirmUnblock()
+            R.id.cab_pin_conversation -> pinConversation(pin = true)
+            R.id.cab_unpin_conversation -> pinConversation(pin = false)
         }
     }
 

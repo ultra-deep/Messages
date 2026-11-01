@@ -18,7 +18,9 @@ class ArchivedConversationsAdapter(
 ) : BaseConversationsAdapter(activity, recyclerView, onRefresh, itemClick) {
     override fun getActionMenuId() = R.menu.cab_archived_conversations
 
-    override fun prepareActionMode(menu: Menu) {}
+    override fun prepareActionMode(menu: Menu) {
+        checkPinBtnVisibility(menu)
+    }
 
     override fun actionItemPressed(id: Int) {
         if (selectedKeys.isEmpty()) {
@@ -29,6 +31,8 @@ class ArchivedConversationsAdapter(
             R.id.cab_delete -> askConfirmDelete()
             R.id.cab_unarchive -> unarchiveConversation()
             R.id.cab_move_to_group -> moveToGroup()
+            R.id.cab_pin_conversation -> pinConversation(pin = true)
+            R.id.cab_unpin_conversation -> pinConversation(pin = false)
             R.id.cab_select_all -> selectAll()
         }
     }

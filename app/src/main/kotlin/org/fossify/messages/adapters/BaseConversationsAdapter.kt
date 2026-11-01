@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Parcelable
 import android.util.TypedValue
+import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -22,6 +23,7 @@ import org.fossify.commons.helpers.FontHelper
 import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.views.MyRecyclerView
+import org.fossify.messages.R
 import org.fossify.messages.activities.SimpleActivity
 import org.fossify.messages.databinding.ItemConversationBinding
 import org.fossify.messages.extensions.RelativeDateTicker
@@ -29,6 +31,7 @@ import org.fossify.messages.extensions.config
 import org.fossify.messages.extensions.forEachVisiblePosition
 import org.fossify.messages.extensions.formatMessageDate
 import org.fossify.messages.extensions.getAllDrafts
+import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.models.Conversation
 
 @Suppress("LeakingThis")
@@ -123,6 +126,36 @@ abstract class BaseConversationsAdapter(
     protected fun getSelectedItems() = currentList.filter {
         selectedKeys.contains(it.hashCode())
     } as ArrayList<Conversation>
+
+    protected fun pinConversation(pin: Boolean) {
+        val conversations = getSelectedItems()
+        if (conversations.isEmpty()) {
+            return
+        }
+
+        if (pin) {
+            activity.config.addPinnedConversations(conversations)
+        } else {
+            activity.config.removePinnedConversations(conversations)
+        }
+
+        getSelectedItemPositions().forEach {
+            notifyItemChanged(it)
+        }
+        activity.runOnUiThread {
+            refreshConversations()
+            finishActMode()
+        }
+    }
+
+    protected fun checkPinBtnVisibility(menu: Menu) {
+        val pinnedConversations = activity.config.pinnedConversations
+        val selectedConversations = getSelectedItems()
+        menu.findItem(R.id.cab_pin_conversation)?.isVisible =
+            selectedConversations.any { !pinnedConversations.contains(it.threadId.toString()) }
+        menu.findItem(R.id.cab_unpin_conversation)?.isVisible =
+            selectedConversations.all { pinnedConversations.contains(it.threadId.toString()) }
+    }
 
     override fun getIsItemSelectable(position: Int) = true
 

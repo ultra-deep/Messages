@@ -84,8 +84,8 @@ class ConversationsAdapter(
 
             R.id.cab_mark_as_read -> markAsRead()
             R.id.cab_mark_as_unread -> markAsUnread()
-            R.id.cab_pin_conversation -> pinConversation(true)
-            R.id.cab_unpin_conversation -> pinConversation(false)
+            R.id.cab_pin_conversation -> pinConversation(pin = true)
+            R.id.cab_unpin_conversation -> pinConversation(pin = false)
             R.id.cab_select_all -> selectAll()
         }
     }
@@ -291,33 +291,6 @@ class ConversationsAdapter(
             putExtra(KEY_PHONE, conversation.phoneNumber)
             activity.launchActivityIntent(this)
         }
-    }
-
-    private fun pinConversation(pin: Boolean) {
-        val conversations = getSelectedItems()
-        if (conversations.isEmpty()) {
-            return
-        }
-
-        if (pin) {
-            activity.config.addPinnedConversations(conversations)
-        } else {
-            activity.config.removePinnedConversations(conversations)
-        }
-
-        getSelectedItemPositions().forEach {
-            notifyItemChanged(it)
-        }
-        refreshConversationsAndFinishActMode()
-    }
-
-    private fun checkPinBtnVisibility(menu: Menu) {
-        val pinnedConversations = activity.config.pinnedConversations
-        val selectedConversations = getSelectedItems()
-        menu.findItem(R.id.cab_pin_conversation).isVisible =
-            selectedConversations.any { !pinnedConversations.contains(it.threadId.toString()) }
-        menu.findItem(R.id.cab_unpin_conversation).isVisible =
-            selectedConversations.all { pinnedConversations.contains(it.threadId.toString()) }
     }
 
     private fun refreshConversationsAndFinishActMode() {

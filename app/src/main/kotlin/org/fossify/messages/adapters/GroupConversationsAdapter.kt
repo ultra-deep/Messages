@@ -23,7 +23,9 @@ class GroupConversationsAdapter(
 ) : BaseConversationsAdapter(activity, recyclerView, onRefresh, itemClick) {
     override fun getActionMenuId() = R.menu.cab_group_conversations
 
-    override fun prepareActionMode(menu: Menu) {}
+    override fun prepareActionMode(menu: Menu) {
+        checkPinBtnVisibility(menu)
+    }
 
     override fun actionItemPressed(id: Int) {
         if (selectedKeys.isEmpty()) {
@@ -34,6 +36,8 @@ class GroupConversationsAdapter(
             R.id.cab_delete -> askConfirmDelete()
             R.id.cab_remove_from_group -> removeFromGroup()
             R.id.cab_move_to_group -> moveToGroup()
+            R.id.cab_pin_conversation -> pinConversation(pin = true)
+            R.id.cab_unpin_conversation -> pinConversation(pin = false)
             R.id.cab_select_all -> selectAll()
         }
     }

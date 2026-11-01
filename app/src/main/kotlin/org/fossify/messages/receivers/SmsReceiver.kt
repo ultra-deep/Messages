@@ -15,17 +15,13 @@ import org.fossify.messages.extensions.getNotificationBitmap
 import org.fossify.messages.extensions.getThreadId
 import org.fossify.messages.extensions.insertNewSMS
 import org.fossify.messages.extensions.insertOrUpdateConversation
-import org.fossify.messages.extensions.invalidateBlockedConversationCache
 import org.fossify.messages.extensions.messagesDB
-import org.fossify.messages.extensions.noteBlockedUnreadChange
 import org.fossify.messages.extensions.saveBlockedMessage
 import org.fossify.messages.extensions.shouldUnarchive
 import org.fossify.messages.extensions.syncStoredUnreadCounts
 import org.fossify.messages.extensions.showReceivedMessageNotification
 import org.fossify.messages.extensions.updateConversationArchivedStatus
 import org.fossify.messages.helpers.ReceiverUtils.isIncomingMessageBlocked
-import org.fossify.messages.helpers.isBlockedSender
-import org.fossify.messages.helpers.refreshBlockedMessages
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.helpers.refreshMessages
 import org.fossify.messages.models.Message
@@ -49,11 +45,13 @@ class SmsReceiver : BroadcastReceiver() {
                 val body = buildString { parts.forEach { append(it.messageBody.orEmpty()) } }
                 val subscriptionId = intent.getIntExtra("subscription", -1)
                 if (isIncomingMessageBlocked(appContext, address, body)) {
-                    keepBlockedSms(
-                        context = appContext,
+                    // Store locally only. Writing into Telephony creates a thread that can
+                    // show up as an empty conversation in the Messages list (provider
+                    // messages from blocked senders are hidden when the thread is opened).
+                    appContext.saveBlockedMessage(
                         address = address,
-                        subject = subject,
                         body = body,
+                        dateMillis = System.currentTimeMillis(),
                         subscriptionId = subscriptionId,
                     )
                     return@ensureBackgroundThread
@@ -75,40 +73,6 @@ class SmsReceiver : BroadcastReceiver() {
             } finally {
                 pending.finish()
             }
-        }
-    }
-
-    private fun keepBlockedSms(
-        context: Context,
-        address: String,
-        subject: String,
-        body: String,
-        subscriptionId: Int,
-    ) {
-        if (context.isBlockedSender(address)) {
-            val threadId = context.getThreadId(address)
-            val messageId = context.insertNewSMS(
-                address = address,
-                subject = subject,
-                body = body,
-                date = System.currentTimeMillis(),
-                read = 0,
-                threadId = threadId,
-                type = Telephony.Sms.MESSAGE_TYPE_INBOX,
-                subscriptionId = subscriptionId,
-            )
-            if (messageId != 0L) {
-                noteBlockedUnreadChange(1)
-            }
-            invalidateBlockedConversationCache()
-            refreshBlockedMessages()
-        } else {
-            context.saveBlockedMessage(
-                address = address,
-                body = body,
-                dateMillis = System.currentTimeMillis(),
-                subscriptionId = subscriptionId,
-            )
         }
     }
 

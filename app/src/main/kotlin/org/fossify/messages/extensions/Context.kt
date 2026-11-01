@@ -943,6 +943,58 @@ fun Context.deleteConversation(threadId: Long) {
     }
 }
 
+/** Removes a telephony thread that no longer has SMS/MMS, plus any Room row for it. */
+fun Context.deleteThreadIfNoProviderMessages(threadId: Long) {
+    if (threadId == 0L || hasProviderMessages(threadId)) {
+        return
+    }
+
+    try {
+        contentResolver.delete(
+            Threads.CONTENT_URI,
+            "${Threads._ID} = ?",
+            arrayOf(threadId.toString()),
+        )
+    } catch (_: Exception) {
+    }
+
+    try {
+        conversationsDB.deleteThreadId(threadId)
+        messagesDB.deleteThreadMessages(threadId)
+    } catch (_: Exception) {
+    }
+    MessagingCache.participantsCache.remove(threadId)
+}
+
+private fun Context.hasProviderMessages(threadId: Long): Boolean {
+    val selection = "${Sms.THREAD_ID} = ?"
+    val args = arrayOf(threadId.toString())
+    return try {
+        contentResolver.query(Sms.CONTENT_URI, arrayOf(Sms._ID), selection, args, null)
+            ?.use { it.moveToFirst() } == true ||
+            contentResolver.query(Mms.CONTENT_URI, arrayOf(Mms._ID), selection, args, null)
+                ?.use { it.moveToFirst() } == true
+    } catch (_: Exception) {
+        true
+    }
+}
+
+fun Context.excludingBlockedSenders(conversations: List<Conversation>): List<Conversation> {
+    val blockedNumbers = try {
+        getBlockedNumbers()
+    } catch (_: Exception) {
+        return conversations
+    }
+    if (blockedNumbers.isEmpty()) {
+        return conversations
+    }
+    return conversations.filterNot { conversation ->
+        !conversation.isGroupConversation &&
+            conversation.phoneNumber.isNotEmpty() &&
+            isBlockedSender(conversation.phoneNumber, blockedNumbers)
+    }
+}
+
 fun Context.checkAndDeleteOldRecycleBinMessages(callback: (() -> Unit)? = null) {
     if (
         config.useRecycleBin
