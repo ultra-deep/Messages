@@ -21,12 +21,14 @@ class BlockedConversationsAdapter(
     private val refreshConversations: () -> Unit,
     itemClick: (Any) -> Unit,
 ) : BaseConversationsAdapter(activity, recyclerView, refreshConversations, itemClick) {
+    override val showBlockNumber = false
+    override val showUnblockNumber = true
+    override val showArchive = false
+
     override fun getActionMenuId() = R.menu.cab_blocked_conversations
 
     override fun prepareActionMode(menu: Menu) {
-        menu.findItem(R.id.cab_unblock_number).title =
-            activity.getString(org.fossify.commons.R.string.unblock)
-        checkPinBtnVisibility(menu)
+        prepareConversationActionMode(menu)
     }
 
     override fun actionItemPressed(id: Int) {
@@ -35,19 +37,20 @@ class BlockedConversationsAdapter(
         }
 
         when (id) {
-            R.id.cab_select_all -> selectAll()
+            R.id.cab_delete -> askConfirmDeleteBlocked()
+            R.id.cab_unblock_number -> askConfirmUnblock()
             R.id.cab_mark_as_read -> markSelected(read = true)
             R.id.cab_mark_as_unread -> markSelected(read = false)
-            R.id.cab_delete -> askConfirmDelete()
-            R.id.cab_unblock_number -> askConfirmUnblock()
-            R.id.cab_pin_conversation -> pinConversation(pin = true)
-            R.id.cab_unpin_conversation -> pinConversation(pin = false)
+            else -> handleConversationAction(id)
         }
     }
 
-    private fun askConfirmDelete() {
+    private fun askConfirmDeleteBlocked() {
         val addresses = getSelectedItems().map { it.phoneNumber }
-        ConfirmationDialog(activity, activity.getString(R.string.delete_blocked_messages_confirmation)) {
+        ConfirmationDialog(
+            activity,
+            activity.getString(R.string.delete_blocked_messages_confirmation)
+        ) {
             ensureBackgroundThread {
                 activity.deleteBlockedConversations(addresses)
                 activity.runOnUiThread {

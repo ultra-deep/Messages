@@ -1,9 +1,11 @@
 package org.fossify.messages.adapters
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Parcelable
+import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Menu
 import android.view.View
@@ -14,24 +16,43 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.qtalk.recyclerviewfastscroller.RecyclerViewFastScroller
 import org.fossify.commons.adapters.MyRecyclerViewListAdapter
+import org.fossify.commons.dialogs.ConfirmationDialog
+import org.fossify.commons.extensions.addBlockedNumber
 import org.fossify.commons.extensions.applyColorFilter
 import org.fossify.commons.extensions.beVisibleIf
+import org.fossify.commons.extensions.copyToClipboard
 import org.fossify.commons.extensions.getContrastColor
 import org.fossify.commons.extensions.getTextSize
+import org.fossify.commons.extensions.launchActivityIntent
+import org.fossify.commons.extensions.notificationManager
 import org.fossify.commons.extensions.setupViewBackground
 import org.fossify.commons.helpers.FontHelper
+import org.fossify.commons.helpers.KEY_PHONE
 import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.views.MyRecyclerView
 import org.fossify.messages.R
 import org.fossify.messages.activities.SimpleActivity
 import org.fossify.messages.databinding.ItemConversationBinding
+import org.fossify.messages.dialogs.RenameConversationDialog
 import org.fossify.messages.extensions.RelativeDateTicker
 import org.fossify.messages.extensions.config
+import org.fossify.messages.extensions.conversationsDB
+import org.fossify.messages.extensions.deleteConversation
+import org.fossify.messages.extensions.dialNumber
 import org.fossify.messages.extensions.forEachVisiblePosition
 import org.fossify.messages.extensions.formatMessageDate
 import org.fossify.messages.extensions.getAllDrafts
+import org.fossify.messages.extensions.invalidateBlockedConversationCache
+import org.fossify.messages.extensions.launchConversationDetails
+import org.fossify.messages.extensions.markThreadMessagesRead
+import org.fossify.messages.extensions.markThreadMessagesUnread
+import org.fossify.messages.extensions.promptMoveConversationsToGroup
+import org.fossify.messages.extensions.renameConversation
+import org.fossify.messages.extensions.updateConversationArchivedStatus
+import org.fossify.messages.helpers.refreshBlockedMessages
 import org.fossify.messages.helpers.refreshConversations
+import org.fossify.messages.messaging.isShortCodeWithLetters
 import org.fossify.messages.models.Conversation
 
 @Suppress("LeakingThis")
@@ -127,6 +148,79 @@ abstract class BaseConversationsAdapter(
         selectedKeys.contains(it.hashCode())
     } as ArrayList<Conversation>
 
+    protected open val showBlockNumber: Boolean = true
+    protected open val showUnblockNumber: Boolean = false
+    protected open val showArchive: Boolean = true
+    protected open val showUnarchive: Boolean = false
+    protected open val showRemoveFromGroup: Boolean = false
+    protected open fun currentGroupIdForMove(): Long = 0L
+
+    protected fun prepareConversationActionMode(menu: Menu) {
+        val selectedItems = getSelectedItems()
+        val isSingleSelection = isOneItemSelected()
+        val selectedConversation = selectedItems.firstOrNull() ?: return
+        val isGroupConversation = selectedConversation.isGroupConversation
+        val archiveAvailable = activity.config.isArchiveAvailable
+
+        menu.apply {
+            findItem(R.id.cab_block_number)?.let { item ->
+                item.isVisible = showBlockNumber
+                if (showBlockNumber) {
+                    item.title = activity.getString(org.fossify.commons.R.string.block_number)
+                }
+            }
+            findItem(R.id.cab_unblock_number)?.let { item ->
+                item.isVisible = showUnblockNumber
+                if (showUnblockNumber) {
+                    item.title = activity.getString(org.fossify.commons.R.string.unblock)
+                }
+            }
+            findItem(R.id.cab_add_number_to_contact)?.isVisible =
+                isSingleSelection && !isGroupConversation
+            findItem(R.id.cab_dial_number)?.isVisible =
+                isSingleSelection && !isGroupConversation &&
+                    !isShortCodeWithLetters(selectedConversation.phoneNumber)
+            findItem(R.id.cab_copy_number)?.isVisible = isSingleSelection && !isGroupConversation
+            findItem(R.id.cab_rename_conversation)?.isVisible =
+                isSingleSelection && isGroupConversation
+            findItem(R.id.cab_conversation_details)?.isVisible = isSingleSelection
+            findItem(R.id.cab_mark_as_read)?.isVisible = selectedItems.any { !it.read }
+            findItem(R.id.cab_mark_as_unread)?.isVisible = selectedItems.any { it.read }
+            findItem(R.id.cab_archive)?.isVisible = showArchive && archiveAvailable
+            findItem(R.id.cab_unarchive)?.isVisible = showUnarchive
+            findItem(R.id.cab_remove_from_group)?.isVisible = showRemoveFromGroup
+            findItem(R.id.cab_move_to_group)?.isVisible = true
+            checkPinBtnVisibility(this)
+        }
+    }
+
+    protected fun handleConversationAction(id: Int): Boolean {
+        if (selectedKeys.isEmpty()) {
+            return true
+        }
+
+        when (id) {
+            R.id.cab_add_number_to_contact -> addNumberToContact()
+            R.id.cab_block_number -> askConfirmBlock()
+            R.id.cab_dial_number -> dialNumber()
+            R.id.cab_copy_number -> copyNumberToClipboard()
+            R.id.cab_delete -> askConfirmDeleteConversations()
+            R.id.cab_archive -> askConfirmArchive()
+            R.id.cab_move_to_group -> moveSelectedToGroup()
+            R.id.cab_rename_conversation -> renameSelectedConversation()
+            R.id.cab_conversation_details ->
+                activity.launchConversationDetails(getSelectedItems().first().threadId)
+
+            R.id.cab_mark_as_read -> markAsRead()
+            R.id.cab_mark_as_unread -> markAsUnread()
+            R.id.cab_pin_conversation -> pinConversation(pin = true)
+            R.id.cab_unpin_conversation -> pinConversation(pin = false)
+            R.id.cab_select_all -> selectAll()
+            else -> return false
+        }
+        return true
+    }
+
     protected fun pinConversation(pin: Boolean) {
         val conversations = getSelectedItems()
         if (conversations.isEmpty()) {
@@ -155,6 +249,196 @@ abstract class BaseConversationsAdapter(
             selectedConversations.any { !pinnedConversations.contains(it.threadId.toString()) }
         menu.findItem(R.id.cab_unpin_conversation)?.isVisible =
             selectedConversations.all { pinnedConversations.contains(it.threadId.toString()) }
+    }
+
+    protected open fun markAsRead() {
+        if (selectedKeys.isEmpty()) {
+            return
+        }
+
+        val conversationsMarkedAsRead = getSelectedItems()
+        ensureBackgroundThread {
+            conversationsMarkedAsRead.filter { conversation -> !conversation.read }.forEach {
+                activity.markThreadMessagesRead(it.threadId)
+            }
+            refreshConversationsAndFinishActMode()
+        }
+    }
+
+    protected open fun markAsUnread() {
+        if (selectedKeys.isEmpty()) {
+            return
+        }
+
+        val conversationsMarkedAsUnread = getSelectedItems()
+        ensureBackgroundThread {
+            conversationsMarkedAsUnread.filter { conversation -> conversation.read }.forEach {
+                activity.markThreadMessagesUnread(it.threadId)
+            }
+            refreshConversationsAndFinishActMode()
+        }
+    }
+
+    protected open fun askConfirmDeleteConversations() {
+        val itemsCnt = selectedKeys.size
+        val items = resources.getQuantityString(R.plurals.delete_conversations, itemsCnt, itemsCnt)
+        val question = String.format(
+            resources.getString(org.fossify.commons.R.string.deletion_confirmation),
+            items
+        )
+
+        ConfirmationDialog(activity, question) {
+            ensureBackgroundThread {
+                deleteSelectedConversations()
+            }
+        }
+    }
+
+    protected open fun deleteSelectedConversations() {
+        if (selectedKeys.isEmpty()) {
+            return
+        }
+
+        val conversationsToRemove = getSelectedItems()
+        conversationsToRemove.forEach {
+            activity.deleteConversation(it.threadId)
+            activity.notificationManager.cancel(it.threadId.hashCode())
+        }
+        removeConversationsFromList(conversationsToRemove)
+    }
+
+    protected fun removeConversationsFromList(removedConversations: List<Conversation>) {
+        val newList = try {
+            currentList.toMutableList().apply { removeAll(removedConversations) }
+        } catch (_: Exception) {
+            currentList.toMutableList()
+        }
+
+        activity.runOnUiThread {
+            if (newList.none { selectedKeys.contains(it.hashCode()) }) {
+                refreshConversations()
+                finishActMode()
+            } else {
+                submitList(newList)
+                if (newList.isEmpty()) {
+                    refreshConversations()
+                }
+            }
+        }
+    }
+
+    private fun askConfirmBlock() {
+        val numbers = getSelectedItems().distinctBy { it.phoneNumber }.map { it.phoneNumber }
+        val numbersString = TextUtils.join(", ", numbers)
+        val question = String.format(
+            resources.getString(org.fossify.commons.R.string.block_confirmation),
+            numbersString
+        )
+
+        ConfirmationDialog(activity, question) {
+            blockNumbers()
+        }
+    }
+
+    private fun blockNumbers() {
+        if (selectedKeys.isEmpty()) {
+            return
+        }
+
+        val numbersToBlock = getSelectedItems()
+        val newList = currentList.toMutableList().apply { removeAll(numbersToBlock) }
+
+        ensureBackgroundThread {
+            numbersToBlock.forEach { conversation ->
+                activity.addBlockedNumber(conversation.phoneNumber)
+                activity.conversationsDB.deleteThreadId(conversation.threadId)
+            }
+            invalidateBlockedConversationCache()
+            refreshBlockedMessages()
+            refreshConversations()
+            activity.runOnUiThread {
+                submitList(newList)
+                finishActMode()
+            }
+        }
+    }
+
+    private fun dialNumber() {
+        val conversation = getSelectedItems().firstOrNull() ?: return
+        activity.dialNumber(conversation.phoneNumber) {
+            finishActMode()
+        }
+    }
+
+    private fun copyNumberToClipboard() {
+        val conversation = getSelectedItems().firstOrNull() ?: return
+        activity.copyToClipboard(conversation.phoneNumber)
+        finishActMode()
+    }
+
+    private fun askConfirmArchive() {
+        val itemsCnt = selectedKeys.size
+        val items = resources.getQuantityString(R.plurals.delete_conversations, itemsCnt, itemsCnt)
+        val question = String.format(resources.getString(R.string.archive_confirmation), items)
+
+        ConfirmationDialog(activity, question) {
+            ensureBackgroundThread {
+                archiveConversations()
+            }
+        }
+    }
+
+    private fun archiveConversations() {
+        if (selectedKeys.isEmpty()) {
+            return
+        }
+
+        val conversationsToRemove = getSelectedItems()
+        conversationsToRemove.forEach {
+            activity.updateConversationArchivedStatus(it.threadId, true)
+            activity.notificationManager.cancel(it.threadId.hashCode())
+        }
+        removeConversationsFromList(conversationsToRemove)
+    }
+
+    private fun moveSelectedToGroup() {
+        val threadIds = getSelectedItems().map { it.threadId }
+        activity.promptMoveConversationsToGroup(threadIds, currentGroupIdForMove()) {
+            finishActMode()
+        }
+    }
+
+    private fun renameSelectedConversation() {
+        val conversation = getSelectedItems().firstOrNull() ?: return
+        RenameConversationDialog(activity, conversation) {
+            ensureBackgroundThread {
+                val updatedConv = activity.renameConversation(conversation, newTitle = it)
+                activity.runOnUiThread {
+                    finishActMode()
+                    currentList.toMutableList().apply {
+                        set(indexOf(conversation), updatedConv)
+                        updateConversations(this as ArrayList<Conversation>)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun addNumberToContact() {
+        val conversation = getSelectedItems().firstOrNull() ?: return
+        Intent().apply {
+            action = Intent.ACTION_INSERT_OR_EDIT
+            type = "vnd.android.cursor.item/contact"
+            putExtra(KEY_PHONE, conversation.phoneNumber)
+            activity.launchActivityIntent(this)
+        }
+    }
+
+    private fun refreshConversationsAndFinishActMode() {
+        activity.runOnUiThread {
+            refreshConversations()
+            finishActMode()
+        }
     }
 
     override fun getIsItemSelectable(position: Int) = true
