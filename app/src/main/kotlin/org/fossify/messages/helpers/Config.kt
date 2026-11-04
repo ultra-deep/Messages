@@ -178,8 +178,28 @@ class Config(context: Context) : BaseConfig(context) {
         set(blockedMessagesBackgroundColor) = prefs.edit()
             .putInt(BLOCKED_MESSAGES_BACKGROUND_COLOR, blockedMessagesBackgroundColor).apply()
 
+    var blockedMessagesDarkBackgroundColor: Int
+        get() = if (prefs.contains(BLOCKED_MESSAGES_DARK_BACKGROUND_COLOR)) {
+            prefs.getInt(BLOCKED_MESSAGES_DARK_BACKGROUND_COLOR, Color.TRANSPARENT)
+        } else {
+            blockedMessagesBackgroundColor
+        }
+        set(blockedMessagesDarkBackgroundColor) = prefs.edit()
+            .putInt(BLOCKED_MESSAGES_DARK_BACKGROUND_COLOR, blockedMessagesDarkBackgroundColor)
+            .apply()
+
     var archivedMessagesBackgroundColor: Int
         get() = prefs.getInt(ARCHIVED_MESSAGES_BACKGROUND_COLOR, Color.TRANSPARENT)
         set(archivedMessagesBackgroundColor) = prefs.edit()
             .putInt(ARCHIVED_MESSAGES_BACKGROUND_COLOR, archivedMessagesBackgroundColor).apply()
+
+    var archivedMessagesDarkBackgroundColor: Int
+        get() = if (prefs.contains(ARCHIVED_MESSAGES_DARK_BACKGROUND_COLOR)) {
+            prefs.getInt(ARCHIVED_MESSAGES_DARK_BACKGROUND_COLOR, Color.TRANSPARENT)
+        } else {
+            archivedMessagesBackgroundColor
+        }
+        set(archivedMessagesDarkBackgroundColor) = prefs.edit()
+            .putInt(ARCHIVED_MESSAGES_DARK_BACKGROUND_COLOR, archivedMessagesDarkBackgroundColor)
+            .apply()
 }

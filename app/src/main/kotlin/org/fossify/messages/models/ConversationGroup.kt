@@ -11,6 +11,7 @@ data class ConversationGroup(
     @ColumnInfo(name = "name") val name: String,
     @ColumnInfo(name = "position") val position: Int = 0,
     @ColumnInfo(name = "background_color") val backgroundColor: Int = Color.TRANSPARENT,
+    @ColumnInfo(name = "background_color_dark") val darkBackgroundColor: Int = Color.TRANSPARENT,
     @ColumnInfo(name = "show_notification") val showNotification: Boolean = true,
     @ColumnInfo(name = "notification_sound") val notificationSound: Boolean = true,
     @ColumnInfo(name = "notification_vibration") val notificationVibration: Boolean = true,
@@ -20,6 +21,7 @@ data class ConversationGroup(
 data class ConversationGroupForm(
     val name: String,
     val backgroundColor: Int,
+    val darkBackgroundColor: Int,
     val showNotification: Boolean,
     val notificationSound: Boolean,
     val notificationVibration: Boolean,

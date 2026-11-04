@@ -84,6 +84,8 @@
     <string name="tab_hidden">Not shown on the main screen</string>
     <string name="reorder_tab">Drag to reorder</string>
     <string name="archived_messages_background">Archived messages background</string>
+    <string name="archived_messages_light_background">Archived messages light background</string>
+    <string name="archived_messages_dark_background">Archived messages dark background</string>
     <!-- Conversation groups -->
     <string name="add_group">Add group</string>
     <string name="new_group">New group</string>
@@ -96,6 +98,8 @@
     <string name="delete_group_confirmation">Delete the group \"%s\"? Its conversations return to Messages.</string>
     <string name="group_name_exists">A group with this name already exists</string>
     <string name="background_color">Background color</string>
+    <string name="light_background_color">Light background color</string>
+    <string name="dark_background_color">Dark background color</string>
     <string name="transparent">Transparent</string>
     <string name="show_group_notification">Show notifications</string>
     <string name="group_notification_sound">Notification sound</string>
@@ -140,6 +144,8 @@
     <string name="blocked_messages">Blocked messages</string>
     <string name="show_blocked_messages_tab">Show blocked messages tab</string>
     <string name="blocked_messages_background">Blocked messages background</string>
+    <string name="blocked_messages_light_background">Blocked messages light background</string>
+    <string name="blocked_messages_dark_background">Blocked messages dark background</string>
     <string name="blocked">Blocked</string>
     <string name="blocked_messages_with_count">Blocked messages (%s)</string>
     <string name="no_blocked_messages">No blocked messages have been found</string>

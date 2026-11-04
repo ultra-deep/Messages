@@ -36,6 +36,8 @@ import org.fossify.commons.extensions.beVisible
 import org.fossify.commons.extensions.beVisibleIf
 import org.fossify.commons.extensions.copyToClipboard
 import org.fossify.commons.extensions.getContrastColor
+import org.fossify.commons.extensions.darkenColor
+import org.fossify.commons.extensions.getProperBackgroundColor
 import org.fossify.commons.extensions.getProperPrimaryColor
 import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.getTextSize
@@ -108,6 +110,7 @@ class ThreadAdapter(
 ) : MyRecyclerViewListAdapter<ThreadItem>(activity, recyclerView, ThreadItemDiffCallback(), itemClick) {
     private var fontSize = activity.getTextSize()
     private var metaTextColor = activity.getProperTextColor()
+    private var conversationBackgroundColor = Color.TRANSPARENT
 
     @SuppressLint("MissingPermission")
     private val hasMultipleSIMCards = (activity.subscriptionManagerCompat().activeSubscriptionInfoList?.size ?: 0) > 1
@@ -554,8 +557,10 @@ class ThreadAdapter(
                 setPadding(messageBubblePadding, messageBubblePadding, messageBubblePadding, messageBubblePadding)
                 setTextSize(TypedValue.COMPLEX_UNIT_PX, fontSize)
                 if (isReceived) {
+                    val bubbleColor = receivedBubbleColor()
                     background = AppCompatResources.getDrawable(activity, R.drawable.item_received_background)
-                    setTextColor(textColor)
+                    background.applyColorFilter(bubbleColor)
+                    setTextColor(bubbleColor.getContrastColor())
                     setLinkTextColor(primaryColor)
                 } else {
                     background = AppCompatResources.getDrawable(activity, R.drawable.item_sent_background)
@@ -739,6 +744,15 @@ class ThreadAdapter(
         }
     }
 
+    private fun receivedBubbleColor(): Int {
+        val baseColor = if (conversationBackgroundColor == Color.TRANSPARENT) {
+            activity.getProperBackgroundColor()
+        } else {
+            conversationBackgroundColor
+        }
+        return baseColor.darkenColor()
+    }
+
     @SuppressLint("NotifyDataSetChanged")
     fun updateConversationBackground(backgroundColor: Int) {
         val nextColor = if (backgroundColor == Color.TRANSPARENT) {
@@ -746,9 +760,10 @@ class ThreadAdapter(
         } else {
             backgroundColor.getContrastColor()
         }
-        if (metaTextColor == nextColor) {
+        if (metaTextColor == nextColor && conversationBackgroundColor == backgroundColor) {
             return
         }
+        conversationBackgroundColor = backgroundColor
         metaTextColor = nextColor
         if (itemCount > 0) {
             notifyDataSetChanged()

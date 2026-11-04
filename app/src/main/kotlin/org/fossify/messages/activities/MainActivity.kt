@@ -83,6 +83,9 @@ import org.fossify.messages.extensions.createConversationGroup
 import org.fossify.messages.extensions.deleteConversationGroup
 import org.fossify.messages.extensions.removeAllArchivedConversations
 import org.fossify.messages.extensions.renameConversationGroup
+import org.fossify.messages.extensions.archivedMessagesTabBackgroundColor
+import org.fossify.messages.extensions.blockedMessagesTabBackgroundColor
+import org.fossify.messages.extensions.resolvedBackgroundColor
 import org.fossify.messages.extensions.countUnreadBlockedMessages
 import org.fossify.messages.extensions.peekBlockedConversations
 import org.fossify.messages.extensions.peekUnreadBlockedCount
@@ -433,10 +436,11 @@ class MainActivity : SimpleActivity() {
 
     private fun conversationListBackgroundColor(): Int {
         return when {
-            showingBlockedTab -> config.blockedMessagesBackgroundColor
-            showingArchivedTab -> config.archivedMessagesBackgroundColor
+            showingBlockedTab -> blockedMessagesTabBackgroundColor()
+            showingArchivedTab -> archivedMessagesTabBackgroundColor()
             selectedGroupId != 0L -> {
-                conversationGroups.firstOrNull { it.id == selectedGroupId }?.backgroundColor
+                conversationGroups.firstOrNull { it.id == selectedGroupId }
+                    ?.resolvedBackgroundColor(this)
                     ?: Color.TRANSPARENT
             }
             else -> Color.TRANSPARENT
@@ -1334,6 +1338,7 @@ class MainActivity : SimpleActivity() {
             activity = this,
             initialName = group.name,
             initialBackgroundColor = group.backgroundColor,
+            initialDarkBackgroundColor = group.darkBackgroundColor,
             initialShowNotification = group.showNotification,
             initialNotificationSound = group.notificationSound,
             initialNotificationVibration = group.notificationVibration,

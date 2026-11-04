@@ -263,6 +263,15 @@ class SettingsActivity : SimpleActivity() {
             config.blockedMessagesBackgroundColor = pickedColor
             setupBlockedMessagesBackground()
         }
+        bindBackgroundColorSetting(
+            color = config.blockedMessagesDarkBackgroundColor,
+            valueView = binding.settingsBlockedMessagesDarkBackground,
+            preview = binding.settingsBlockedMessagesDarkBackgroundPreview,
+            holder = binding.settingsBlockedMessagesDarkBackgroundHolder,
+        ) { pickedColor ->
+            config.blockedMessagesDarkBackgroundColor = pickedColor
+            setupBlockedMessagesBackground()
+        }
     }
 
     private fun setupArchivedMessagesBackground() {
@@ -273,6 +282,15 @@ class SettingsActivity : SimpleActivity() {
             holder = binding.settingsArchivedMessagesBackgroundHolder,
         ) { pickedColor ->
             config.archivedMessagesBackgroundColor = pickedColor
+            setupArchivedMessagesBackground()
+        }
+        bindBackgroundColorSetting(
+            color = config.archivedMessagesDarkBackgroundColor,
+            valueView = binding.settingsArchivedMessagesDarkBackground,
+            preview = binding.settingsArchivedMessagesDarkBackgroundPreview,
+            holder = binding.settingsArchivedMessagesDarkBackgroundHolder,
+        ) { pickedColor ->
+            config.archivedMessagesDarkBackgroundColor = pickedColor
             setupArchivedMessagesBackground()
         }
     }

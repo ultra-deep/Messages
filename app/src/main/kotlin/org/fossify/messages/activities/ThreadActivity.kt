@@ -63,7 +63,6 @@ import org.fossify.commons.extensions.beVisibleIf
 import org.fossify.commons.extensions.copyToClipboard
 import org.fossify.commons.extensions.darkenColor
 import org.fossify.commons.extensions.formatDate
-import org.fossify.commons.extensions.getBottomNavigationBackgroundColor
 import org.fossify.commons.extensions.getContrastColor
 import org.fossify.commons.extensions.getFilenameFromPath
 import org.fossify.commons.extensions.getFilenameFromUri
@@ -75,7 +74,6 @@ import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.getTextSize
 import org.fossify.commons.extensions.hideKeyboard
 import org.fossify.commons.extensions.insetsController
-import org.fossify.commons.extensions.isDynamicTheme
 import org.fossify.commons.extensions.isVisible
 import org.fossify.commons.extensions.launchActivityIntent
 import org.fossify.commons.extensions.maybeShowNumberPickerDialog
@@ -115,6 +113,7 @@ import org.fossify.messages.dialogs.InvalidNumberDialog
 import org.fossify.messages.dialogs.RenameConversationDialog
 import org.fossify.messages.dialogs.ScheduleMessageDialog
 import org.fossify.messages.extensions.clearExpiredScheduledMessages
+import org.fossify.messages.extensions.blockedMessagesTabBackgroundColor
 import org.fossify.messages.extensions.conversationTabBackgroundColor
 import org.fossify.messages.extensions.config
 import org.fossify.messages.extensions.conversationsDB
@@ -329,10 +328,6 @@ class ThreadActivity : SimpleActivity() {
         }
 
         (binding.threadMessagesList.adapter as? ThreadAdapter)?.refreshDisplayedDates()
-
-        val bottomBarColor = getBottomBarColor()
-        binding.messageHolder.root.setBackgroundColor(bottomBarColor)
-        binding.shortCodeHolder.root.setBackgroundColor(bottomBarColor)
     }
 
     override fun onPause() {
@@ -1026,7 +1021,6 @@ class ThreadActivity : SimpleActivity() {
             scrollToBottomFab.setOnClickListener {
                 scrollToBottom()
             }
-            scrollToBottomFab.backgroundTintList = ColorStateList.valueOf(getBottomBarColor())
             scrollToBottomFab.applyColorFilter(textColor)
         }
 
@@ -2281,7 +2275,7 @@ class ThreadActivity : SimpleActivity() {
 
     private fun refreshConversationBackground() {
         if (isBlockedConversation) {
-            val color = config.blockedMessagesBackgroundColor
+            val color = blockedMessagesTabBackgroundColor()
             if (conversationBackgroundColor != color) {
                 conversationBackgroundColor = color
                 applyThreadBackground()
@@ -2309,10 +2303,14 @@ class ThreadActivity : SimpleActivity() {
         } else {
             getProperTextColor()
         }
+        val composeBarColor = backgroundColor.darkenColor()
         binding.threadCoordinator.setBackgroundColor(backgroundColor)
         binding.threadHolder.setBackgroundColor(backgroundColor)
         binding.threadMessagesFastscroller.setBackgroundColor(backgroundColor)
         binding.threadMessagesList.setBackgroundColor(backgroundColor)
+        binding.messageHolder.root.setBackgroundColor(composeBarColor)
+        binding.shortCodeHolder.root.setBackgroundColor(composeBarColor)
+        binding.scrollToBottomFab.backgroundTintList = ColorStateList.valueOf(composeBarColor)
         binding.addContactOrNumber.setTextColor(contentColor)
         binding.addContactOrNumber.setHintTextColor(contentColor.adjustAlpha(MEDIUM_ALPHA))
         binding.confirmManageContacts.applyColorFilter(contentColor)
@@ -2324,12 +2322,6 @@ class ThreadActivity : SimpleActivity() {
             topBarColor = backgroundColor,
         )
         (binding.threadMessagesList.adapter as? ThreadAdapter)?.updateConversationBackground(customColor)
-    }
-
-    private fun getBottomBarColor() = if (isDynamicTheme()) {
-        resources.getColor(org.fossify.commons.R.color.you_bottom_bar_color)
-    } else {
-        getBottomNavigationBackgroundColor()
     }
 
     fun setupMessagingEdgeToEdge() {

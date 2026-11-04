@@ -3,7 +3,10 @@ package org.fossify.messages.dialogs
 import android.app.Activity
 import android.content.DialogInterface.BUTTON_POSITIVE
 import android.graphics.Color
+import android.view.View
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.widget.ImageView
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import org.fossify.commons.dialogs.ColorPickerDialog
@@ -15,6 +18,7 @@ import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.setupDialogStuff
 import org.fossify.commons.extensions.showKeyboard
 import org.fossify.commons.extensions.toast
+import org.fossify.commons.views.MyTextView
 import org.fossify.messages.R
 import org.fossify.messages.databinding.DialogGroupNameBinding
 import org.fossify.messages.databinding.ItemGroupNumberPatternBinding
@@ -28,6 +32,7 @@ class GroupNameDialog(
     private val activity: Activity,
     private val initialName: String = "",
     private val initialBackgroundColor: Int = Color.TRANSPARENT,
+    private val initialDarkBackgroundColor: Int = initialBackgroundColor,
     private val initialShowNotification: Boolean = true,
     private val initialNotificationSound: Boolean = true,
     private val initialNotificationVibration: Boolean = true,
@@ -40,31 +45,56 @@ class GroupNameDialog(
     private val patterns = numberPatternsOf(initialNumberPatterns).distinct().toMutableList()
 
     init {
-        var selectedColor = initialBackgroundColor
+        var selectedLightColor = initialBackgroundColor
+        var selectedDarkColor = initialDarkBackgroundColor
         val binding = DialogGroupNameBinding.inflate(activity.layoutInflater)
-        fun showSelectedColor(color: Int) {
-            binding.groupBackgroundColorPreview.showBackgroundColorPreview(color)
-            binding.groupBackgroundColorValue.text = color.toBackgroundColorLabel(activity)
+
+        fun showColor(color: Int, preview: ImageView, valueView: MyTextView) {
+            preview.showBackgroundColorPreview(color)
+            valueView.text = color.toBackgroundColorLabel(activity)
         }
-        binding.groupNameEditText.setText(initialName)
-        showSelectedColor(selectedColor)
-        binding.groupBackgroundColorHolder.setOnClickListener {
-            val pickerColor = if (selectedColor == Color.TRANSPARENT) {
-                activity.getProperPrimaryColor()
-            } else {
-                selectedColor
-            }
-            ColorPickerDialog(
-                activity = activity,
-                color = pickerColor,
-                addDefaultColorButton = true,
-            ) { wasPositivePressed, pickedColor ->
-                if (wasPositivePressed) {
-                    selectedColor = pickedColor
-                    showSelectedColor(selectedColor)
+
+        fun bindColorPicker(
+            holder: View,
+            preview: ImageView,
+            valueView: MyTextView,
+            currentColor: () -> Int,
+            onPicked: (Int) -> Unit,
+        ) {
+            showColor(currentColor(), preview, valueView)
+            holder.setOnClickListener {
+                val selected = currentColor()
+                val pickerColor = if (selected == Color.TRANSPARENT) {
+                    activity.getProperPrimaryColor()
+                } else {
+                    selected
+                }
+                ColorPickerDialog(
+                    activity = activity,
+                    color = pickerColor,
+                    addDefaultColorButton = true,
+                ) { wasPositivePressed, pickedColor ->
+                    if (wasPositivePressed) {
+                        onPicked(pickedColor)
+                        showColor(pickedColor, preview, valueView)
+                    }
                 }
             }
         }
+
+        binding.groupNameEditText.setText(initialName)
+        bindColorPicker(
+            holder = binding.groupBackgroundColorHolder,
+            preview = binding.groupBackgroundColorPreview,
+            valueView = binding.groupBackgroundColorValue,
+            currentColor = { selectedLightColor },
+        ) { selectedLightColor = it }
+        bindColorPicker(
+            holder = binding.groupDarkBackgroundColorHolder,
+            preview = binding.groupDarkBackgroundColorPreview,
+            valueView = binding.groupDarkBackgroundColorValue,
+            currentColor = { selectedDarkColor },
+        ) { selectedDarkColor = it }
         binding.groupShowNotificationCheckbox.isChecked = initialShowNotification
         binding.groupNotificationSoundCheckbox.isChecked = initialNotificationSound
         binding.groupNotificationVibrationCheckbox.isChecked = initialNotificationVibration
@@ -96,7 +126,13 @@ class GroupNameDialog(
             .apply {
                 activity.setupDialogStuff(binding.root, this, titleRes) { alertDialog ->
                     dialog = alertDialog
-                    alertDialog.showKeyboard(binding.groupNameEditText)
+                    if (initialName.isEmpty()) {
+                        alertDialog.showKeyboard(binding.groupNameEditText)
+                    } else {
+                        alertDialog.window?.setSoftInputMode(
+                            WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
+                        )
+                    }
                     alertDialog.getButton(BUTTON_POSITIVE).setOnClickListener {
                         val name = binding.groupNameEditText.text?.toString().orEmpty().trim()
                         if (name.isEmpty()) {
@@ -113,10 +149,12 @@ class GroupNameDialog(
                         callback(
                             ConversationGroupForm(
                                 name = name,
-                                backgroundColor = selectedColor,
+                                backgroundColor = selectedLightColor,
+                                darkBackgroundColor = selectedDarkColor,
                                 showNotification = binding.groupShowNotificationCheckbox.isChecked,
                                 notificationSound = binding.groupNotificationSoundCheckbox.isChecked,
-                                notificationVibration = binding.groupNotificationVibrationCheckbox.isChecked,
+                                notificationVibration =
+                                    binding.groupNotificationVibrationCheckbox.isChecked,
                                 numberPatterns = patterns.joinToString("\n"),
                             )
                         )

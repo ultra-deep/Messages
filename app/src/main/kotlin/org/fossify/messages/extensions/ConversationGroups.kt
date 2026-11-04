@@ -42,6 +42,7 @@ fun Context.createConversationGroup(form: ConversationGroupForm): Long {
             name = trimmed,
             position = conversationGroupsDB.nextPosition(),
             backgroundColor = form.backgroundColor,
+            darkBackgroundColor = form.darkBackgroundColor,
             showNotification = form.showNotification,
             notificationSound = form.notificationSound,
             notificationVibration = form.notificationVibration,
@@ -55,6 +56,7 @@ fun Context.renameConversationGroup(groupId: Long, form: ConversationGroupForm) 
         id = groupId,
         name = form.name.trim(),
         backgroundColor = form.backgroundColor,
+        darkBackgroundColor = form.darkBackgroundColor,
         showNotification = form.showNotification,
         notificationSound = form.notificationSound,
         notificationVibration = form.notificationVibration,
@@ -108,7 +110,11 @@ fun Context.conversationTabBackgroundColor(threadId: Long): Int {
             ignoreNumberPattern = conversation.ignoreNumberPattern,
         )
     }
-    return group?.backgroundColor ?: Color.TRANSPARENT
+    return group?.resolvedBackgroundColor(this) ?: Color.TRANSPARENT
+}
+
+fun ConversationGroup.resolvedBackgroundColor(context: Context): Int {
+    return context.resolveTabBackgroundColor(backgroundColor, darkBackgroundColor)
 }
 
 private fun matchesGroupPattern(group: ConversationGroup, number: String): Boolean {

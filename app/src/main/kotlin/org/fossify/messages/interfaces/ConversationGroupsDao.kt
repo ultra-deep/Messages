@@ -15,6 +15,7 @@ interface ConversationGroupsDao {
 
     @Query(
         "UPDATE conversation_groups SET name = :name, background_color = :backgroundColor, " +
+            "background_color_dark = :darkBackgroundColor, " +
             "show_notification = :showNotification, notification_sound = :notificationSound, " +
             "notification_vibration = :notificationVibration, number_patterns = :numberPatterns " +
             "WHERE id = :id"
@@ -23,6 +24,7 @@ interface ConversationGroupsDao {
         id: Long,
         name: String,
         backgroundColor: Int,
+        darkBackgroundColor: Int,
         showNotification: Boolean,
         notificationSound: Boolean,
         notificationVibration: Boolean,
