@@ -1047,21 +1047,26 @@ class MainActivity : SimpleActivity() {
                 ConversationTab.Blocked, ConversationTab.Archived -> Unit
             }
         }
-        if (items.isEmpty()) {
-            return
+        when (items.size) {
+            0 -> return
+            1 -> navigateToUnreadTab(items.first().id)
+            else -> RadioGroupDialog(
+                activity = this,
+                items = items,
+                titleId = R.string.go_to_unread,
+            ) { selected ->
+                navigateToUnreadTab(selected as Int)
+            }
         }
-        RadioGroupDialog(
-            activity = this,
-            items = items,
-            titleId = R.string.go_to_unread,
-        ) { selected ->
-            when (val id = selected as Int) {
-                MESSAGES_UNREAD_ITEM_ID -> selectConversationTab(messagesTabIndex())
-                else -> {
-                    val index = groupTabIndex(id.toLong())
-                    if (index >= 0) {
-                        selectConversationTab(index)
-                    }
+    }
+
+    private fun navigateToUnreadTab(id: Int) {
+        when (id) {
+            MESSAGES_UNREAD_ITEM_ID -> selectConversationTab(messagesTabIndex())
+            else -> {
+                val index = groupTabIndex(id.toLong())
+                if (index >= 0) {
+                    selectConversationTab(index)
                 }
             }
         }
