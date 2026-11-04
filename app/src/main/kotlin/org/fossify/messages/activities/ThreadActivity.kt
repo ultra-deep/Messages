@@ -114,6 +114,7 @@ import org.fossify.messages.dialogs.RenameConversationDialog
 import org.fossify.messages.dialogs.ScheduleMessageDialog
 import org.fossify.messages.extensions.clearExpiredScheduledMessages
 import org.fossify.messages.extensions.blockedMessagesTabBackgroundColor
+import org.fossify.messages.extensions.composeBarBackgroundColor
 import org.fossify.messages.extensions.conversationTabBackgroundColor
 import org.fossify.messages.extensions.config
 import org.fossify.messages.extensions.conversationsDB
@@ -2303,7 +2304,11 @@ class ThreadActivity : SimpleActivity() {
         } else {
             getProperTextColor()
         }
-        val composeBarColor = backgroundColor.darkenColor()
+        val composeBarColor = if (useCustomColor) {
+            backgroundColor.darkenColor()
+        } else {
+            composeBarBackgroundColor()
+        }
         binding.threadCoordinator.setBackgroundColor(backgroundColor)
         binding.threadHolder.setBackgroundColor(backgroundColor)
         binding.threadMessagesFastscroller.setBackgroundColor(backgroundColor)

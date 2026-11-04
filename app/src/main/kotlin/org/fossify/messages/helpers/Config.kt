@@ -175,8 +175,13 @@ class Config(context: Context) : BaseConfig(context) {
 
     var blockedMessagesBackgroundColor: Int
         get() = prefs.getInt(BLOCKED_MESSAGES_BACKGROUND_COLOR, Color.TRANSPARENT)
-        set(blockedMessagesBackgroundColor) = prefs.edit()
-            .putInt(BLOCKED_MESSAGES_BACKGROUND_COLOR, blockedMessagesBackgroundColor).apply()
+        set(blockedMessagesBackgroundColor) {
+            val editor = prefs.edit()
+            if (!prefs.contains(BLOCKED_MESSAGES_DARK_BACKGROUND_COLOR)) {
+                editor.putInt(BLOCKED_MESSAGES_DARK_BACKGROUND_COLOR, this.blockedMessagesBackgroundColor)
+            }
+            editor.putInt(BLOCKED_MESSAGES_BACKGROUND_COLOR, blockedMessagesBackgroundColor).apply()
+        }
 
     var blockedMessagesDarkBackgroundColor: Int
         get() = if (prefs.contains(BLOCKED_MESSAGES_DARK_BACKGROUND_COLOR)) {
@@ -190,8 +195,13 @@ class Config(context: Context) : BaseConfig(context) {
 
     var archivedMessagesBackgroundColor: Int
         get() = prefs.getInt(ARCHIVED_MESSAGES_BACKGROUND_COLOR, Color.TRANSPARENT)
-        set(archivedMessagesBackgroundColor) = prefs.edit()
-            .putInt(ARCHIVED_MESSAGES_BACKGROUND_COLOR, archivedMessagesBackgroundColor).apply()
+        set(archivedMessagesBackgroundColor) {
+            val editor = prefs.edit()
+            if (!prefs.contains(ARCHIVED_MESSAGES_DARK_BACKGROUND_COLOR)) {
+                editor.putInt(ARCHIVED_MESSAGES_DARK_BACKGROUND_COLOR, this.archivedMessagesBackgroundColor)
+            }
+            editor.putInt(ARCHIVED_MESSAGES_BACKGROUND_COLOR, archivedMessagesBackgroundColor).apply()
+        }
 
     var archivedMessagesDarkBackgroundColor: Int
         get() = if (prefs.contains(ARCHIVED_MESSAGES_DARK_BACKGROUND_COLOR)) {

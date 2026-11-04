@@ -36,8 +36,6 @@ import org.fossify.commons.extensions.beVisible
 import org.fossify.commons.extensions.beVisibleIf
 import org.fossify.commons.extensions.copyToClipboard
 import org.fossify.commons.extensions.getContrastColor
-import org.fossify.commons.extensions.darkenColor
-import org.fossify.commons.extensions.getProperBackgroundColor
 import org.fossify.commons.extensions.getProperPrimaryColor
 import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.getTextSize
@@ -45,6 +43,8 @@ import org.fossify.commons.extensions.getTimeFormat
 import org.fossify.commons.extensions.shareTextIntent
 import org.fossify.commons.extensions.showErrorToast
 import org.fossify.commons.extensions.usableScreenSize
+import org.fossify.messages.extensions.receivedMessageBubbleColor
+import org.fossify.messages.extensions.sentMessageBubbleColor
 import org.fossify.commons.helpers.FontHelper
 import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.helpers.ensureBackgroundThread
@@ -504,8 +504,8 @@ class ThreadAdapter(
                 applyTo(threadMessageHolder)
             }
 
-            val primaryColor = activity.getProperPrimaryColor()
-            val contrastColor = primaryColor.getContrastColor()
+            val bubbleColor = sentBubbleColor()
+            val contrastColor = bubbleColor.getContrastColor()
 
             threadMessageBody.apply {
                 updateLayoutParams<RelativeLayout.LayoutParams> {
@@ -517,7 +517,7 @@ class ThreadAdapter(
                     bodyView = this,
                     isReceived = false,
                     emojiCount = emojiCount,
-                    primaryColor = primaryColor,
+                    primaryColor = activity.getProperPrimaryColor(),
                     contrastColor = contrastColor
                 )
 
@@ -563,8 +563,9 @@ class ThreadAdapter(
                     setTextColor(bubbleColor.getContrastColor())
                     setLinkTextColor(primaryColor)
                 } else {
+                    val bubbleColor = sentBubbleColor()
                     background = AppCompatResources.getDrawable(activity, R.drawable.item_sent_background)
-                    background.applyColorFilter(primaryColor)
+                    background.applyColorFilter(bubbleColor)
                     setTextColor(contrastColor)
                     setLinkTextColor(contrastColor)
                 }
@@ -745,12 +746,11 @@ class ThreadAdapter(
     }
 
     private fun receivedBubbleColor(): Int {
-        val baseColor = if (conversationBackgroundColor == Color.TRANSPARENT) {
-            activity.getProperBackgroundColor()
-        } else {
-            conversationBackgroundColor
-        }
-        return baseColor.darkenColor()
+        return activity.receivedMessageBubbleColor(conversationBackgroundColor)
+    }
+
+    private fun sentBubbleColor(): Int {
+        return activity.sentMessageBubbleColor(conversationBackgroundColor)
     }
 
     @SuppressLint("NotifyDataSetChanged")
