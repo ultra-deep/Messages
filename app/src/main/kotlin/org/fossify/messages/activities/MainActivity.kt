@@ -23,6 +23,8 @@ import androidx.appcompat.content.res.AppCompatResources
 import com.google.android.material.tabs.TabLayout
 import org.fossify.commons.dialogs.ConfirmationDialog
 import org.fossify.commons.dialogs.PermissionRequiredDialog
+import org.fossify.commons.dialogs.RadioGroupDialog
+import org.fossify.commons.models.RadioItem
 import org.fossify.commons.extensions.adjustAlpha
 import org.fossify.commons.extensions.appLaunched
 import org.fossify.commons.extensions.appLockManager
@@ -124,6 +126,7 @@ class MainActivity : SimpleActivity() {
     override var isSearchBarEnabled = true
     
     private val MAKE_DEFAULT_APP_REQUEST = 1
+    private val MESSAGES_UNREAD_ITEM_ID = -2
 
     private var storedTextColor = 0
     private var storedFontSize = 0
@@ -902,9 +905,9 @@ class MainActivity : SimpleActivity() {
             isClickable = true
             isFocusable = true
             visibility = View.GONE
-            contentDescription = getString(R.string.go_to_last_message)
+            contentDescription = getString(R.string.go_to_unread)
             foreground = AppCompatResources.getDrawable(this@MainActivity, ripple.resourceId)
-            setOnClickListener { scrollToLastConversationInCurrentTab() }
+            setOnClickListener { showUnreadTabsDialog() }
             addView(
                 icon,
                 FrameLayout.LayoutParams(
@@ -991,7 +994,7 @@ class MainActivity : SimpleActivity() {
         badge.text = unreadBlockedBadgeText(total)
         styleUnreadTotalBadge()
         badge.beVisible()
-        button.contentDescription = getString(R.string.go_to_last_message) + ", " + resources.getQuantityString(
+        button.contentDescription = getString(R.string.go_to_unread) + ", " + resources.getQuantityString(
             R.plurals.unread_messages_count,
             total,
             total,
@@ -1016,14 +1019,56 @@ class MainActivity : SimpleActivity() {
         searchBox.layoutParams = searchParams
     }
 
-    private fun scrollToLastConversationInCurrentTab() {
-        val list = binding.conversationsList
-        val lastIndex = (list.adapter?.itemCount ?: 0) - 1
-        if (lastIndex < 0) {
+    private fun showUnreadTabsDialog() {
+        val items = ArrayList<RadioItem>()
+        visibleTabs.forEach { tab ->
+            when (tab) {
+                ConversationTab.Messages -> {
+                    if (inboxUnreadCount > 0) {
+                        items.add(
+                            RadioItem(
+                                MESSAGES_UNREAD_ITEM_ID,
+                                unreadTabLabel(getString(R.string.messages), inboxUnreadCount),
+                            ),
+                        )
+                    }
+                }
+                is ConversationTab.Group -> {
+                    val group = conversationGroups.firstOrNull { it.id == tab.id } ?: return@forEach
+                    if (!group.showNotification) {
+                        return@forEach
+                    }
+                    val count = knownGroupUnreadCounts[group.id] ?: 0
+                    if (count <= 0) {
+                        return@forEach
+                    }
+                    items.add(RadioItem(group.id.toInt(), unreadTabLabel(group.name, count)))
+                }
+                ConversationTab.Blocked, ConversationTab.Archived -> Unit
+            }
+        }
+        if (items.isEmpty()) {
             return
         }
-        list.stopScroll()
-        list.smoothScrollToPosition(lastIndex)
+        RadioGroupDialog(
+            activity = this,
+            items = items,
+            titleId = R.string.go_to_unread,
+        ) { selected ->
+            when (val id = selected as Int) {
+                MESSAGES_UNREAD_ITEM_ID -> selectConversationTab(messagesTabIndex())
+                else -> {
+                    val index = groupTabIndex(id.toLong())
+                    if (index >= 0) {
+                        selectConversationTab(index)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun unreadTabLabel(name: String, count: Int): String {
+        return "$name (${unreadBlockedBadgeText(count)})"
     }
 
     private fun applyTabBadge(

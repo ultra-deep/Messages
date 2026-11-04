@@ -64,7 +64,7 @@
         <item quantity="one">%d unread message</item>
         <item quantity="other">%d unread messages</item>
     </plurals>
-    <string name="go_to_last_message">Go to last message</string>
+    <string name="go_to_unread">Go to unread</string>
     <string name="me">Me</string>
     <string name="enable_custom_notifications">Enable custom notifications</string>
     <!-- Archive -->
