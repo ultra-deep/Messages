@@ -434,6 +434,12 @@ fun Context.getConversations(
             sortOrder
         ) { cursor ->
             val id = cursor.getLongValue(Threads._ID)
+            // Keyword-blocked MMS is deleted after the library creates a thread; Android can
+            // leave MESSAGE_COUNT > 0 with no rows. Skip and remove those empty orphans.
+            if (!hasProviderMessages(id)) {
+                deleteThreadIfNoProviderMessages(id)
+                return@queryCursorUnsafe
+            }
             var snippet = cursor.getStringValue(Threads.SNIPPET) ?: ""
             if (snippet.isEmpty()) {
                 snippet = getThreadSnippet(id)
@@ -992,6 +998,48 @@ fun Context.excludingBlockedSenders(conversations: List<Conversation>): List<Con
         !conversation.isGroupConversation &&
             conversation.phoneNumber.isNotEmpty() &&
             isBlockedSender(conversation.phoneNumber, blockedNumbers)
+    }
+}
+
+/**
+ * Drops inbox rows that have nothing left to show (and no draft / scheduled thread).
+ * Covers keyword-blocked MMS orphans and threads whose messages were all moved to trash.
+ */
+fun Context.excludingEmptyConversations(conversations: List<Conversation>): List<Conversation> {
+    return conversations.filter { conversation ->
+        if (conversation.isScheduled) {
+            return@filter true
+        }
+        val hasDraft = try {
+            draftsDB.getDraftById(conversation.threadId) != null
+        } catch (_: Exception) {
+            false
+        }
+        if (hasDraft) {
+            return@filter true
+        }
+        val hasLocalMessages = try {
+            messagesDB.getNonRecycledThreadMessages(conversation.threadId).isNotEmpty()
+        } catch (_: Exception) {
+            false
+        }
+        if (hasLocalMessages) {
+            return@filter true
+        }
+        val hasOnlyRecycledMessages = try {
+            messagesDB.getThreadMessagesFromRecycleBin(conversation.threadId).isNotEmpty()
+        } catch (_: Exception) {
+            false
+        }
+        if (hasOnlyRecycledMessages) {
+            // Still listed under Recycle Bin; hide the empty row from Messages.
+            return@filter false
+        }
+        if (hasProviderMessages(conversation.threadId)) {
+            return@filter true
+        }
+        deleteThreadIfNoProviderMessages(conversation.threadId)
+        false
     }
 }
 

@@ -50,6 +50,9 @@ class MmsReceiver : MmsReceivedReceiver() {
         val address = mms.getSender()?.phoneNumbers?.firstOrNull()?.normalizedNumber ?: mms.senderPhoneNumber
         ensureBackgroundThread {
             if (isIncomingMessageBlocked(context, address, mms.body)) {
+                // Never keep a keyword/unknown-blocked (or blocked-sender) thread in the
+                // Messages inbox. Re-sync will restore the row if other real messages remain.
+                context.conversationsDB.deleteThreadId(mms.threadId)
                 if (!context.isBlockedSender(address)) {
                     val body = mms.body.ifBlank { context.getString(R.string.attachment) }
                     context.saveBlockedMessage(
@@ -64,15 +67,13 @@ class MmsReceiver : MmsReceivedReceiver() {
                     // Library already wrote the MMS (and created a thread). Remove the
                     // orphan thread so it does not appear as an empty inbox conversation.
                     context.deleteThreadIfNoProviderMessages(mms.threadId)
-                    refreshConversations()
                 } else {
                     // Keep the MMS in the provider for the Blocked tab, but never in inbox.
-                    context.conversationsDB.deleteThreadId(mms.threadId)
                     noteBlockedUnreadChange(1)
                     invalidateBlockedConversationCache()
                     refreshBlockedMessages()
-                    refreshConversations()
                 }
+                refreshConversations()
                 return@ensureBackgroundThread
             }
 

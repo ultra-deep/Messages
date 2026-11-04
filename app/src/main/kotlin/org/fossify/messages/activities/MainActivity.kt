@@ -88,6 +88,7 @@ import org.fossify.messages.extensions.peekBlockedConversations
 import org.fossify.messages.extensions.peekUnreadBlockedCount
 import org.fossify.messages.extensions.reloadBlockedConversations
 import org.fossify.messages.extensions.excludingBlockedSenders
+import org.fossify.messages.extensions.excludingEmptyConversations
 import org.fossify.messages.extensions.getConversations
 import org.fossify.messages.extensions.getMessages
 import org.fossify.messages.extensions.getUnreadCountsByThread
@@ -1141,7 +1142,9 @@ class MainActivity : SimpleActivity() {
             emptyList()
         }
         val ungrouped = try {
-            excludingBlockedSenders(conversationsDB.getNonArchived())
+            excludingEmptyConversations(
+                excludingBlockedSenders(conversationsDB.getNonArchived())
+            )
         } catch (_: Exception) {
             emptyList()
         }
@@ -1500,8 +1503,10 @@ class MainActivity : SimpleActivity() {
             }
             val conversations = try {
                 ArrayList(
-                    excludingBlockedSenders(
-                        conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap)
+                    excludingEmptyConversations(
+                        excludingBlockedSenders(
+                            conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap)
+                        )
                     )
                 )
             } catch (_: Exception) {
@@ -1587,6 +1592,8 @@ class MainActivity : SimpleActivity() {
                 val isConversationDeleted = !conversations.map { it.threadId }.contains(threadId)
                 if (isConversationDeleted && !isTemporaryThread) {
                     conversationsDB.deleteThreadId(threadId)
+                    cachedConversations.removeAll { it.threadId == threadId }
+                    return@forEach
                 }
 
                 val newConversation =
@@ -1639,8 +1646,10 @@ class MainActivity : SimpleActivity() {
                 null
             }
             val allConversations = try {
-                excludingBlockedSenders(
-                    conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap)
+                excludingEmptyConversations(
+                    excludingBlockedSenders(
+                        conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap)
+                    )
                 ).excludingPatternGroups(groups)
             } catch (_: Exception) {
                 ArrayList()

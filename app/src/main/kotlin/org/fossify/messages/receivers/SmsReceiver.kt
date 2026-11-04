@@ -54,6 +54,8 @@ class SmsReceiver : BroadcastReceiver() {
                         dateMillis = System.currentTimeMillis(),
                         subscriptionId = subscriptionId,
                     )
+                    // Drop any stale empty inbox row for this sender after keyword blocks.
+                    refreshConversations()
                     return@ensureBackgroundThread
                 }
 

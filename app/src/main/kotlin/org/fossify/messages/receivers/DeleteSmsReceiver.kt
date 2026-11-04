@@ -79,20 +79,27 @@ class DeleteSmsReceiver : BroadcastReceiver() {
         threadId: Long,
         targets: List<Pair<Long, Boolean>>,
     ) {
-        context.updateLastConversationMessage(threadId)
         val conversation = context.conversationsDB.getConversationWithThreadId(threadId) ?: return
         val trashed = targets.toSet()
         val latestRemaining = context.getMessages(threadId, includeScheduledMessages = false)
             .filterNot { (it.id to it.isMMS) in trashed }
             .maxWithOrNull(compareBy<Message> { it.date }.thenBy { it.id })
 
-        val updated = if (latestRemaining == null) {
-            conversation.copy(snippet = "")
-        } else {
-            context.messagesDB.insertOrUpdate(latestRemaining)
-            conversation.copy(snippet = latestRemaining.body, date = latestRemaining.date)
+        if (latestRemaining == null) {
+            // All messages from this notification are in the recycle bin. Keep the row for
+            // Recycle Bin, but clear the snippet so Messages can hide the empty conversation.
+            // Do not re-sync from Telephony — those messages are still on disk until purged.
+            context.conversationsDB.insertOrUpdate(
+                conversation.copy(snippet = "", read = true, unreadCount = 0)
+            )
+            return
         }
-        context.conversationsDB.insertOrUpdate(updated)
+
+        context.updateLastConversationMessage(threadId)
+        context.messagesDB.insertOrUpdate(latestRemaining)
+        context.conversationsDB.insertOrUpdate(
+            conversation.copy(snippet = latestRemaining.body, date = latestRemaining.date)
+        )
     }
 
     private fun messageTargets(intent: Intent): List<Pair<Long, Boolean>> {
