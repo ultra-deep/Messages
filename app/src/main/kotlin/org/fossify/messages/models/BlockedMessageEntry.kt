@@ -10,6 +10,7 @@ data class BlockedMessageEntry(
     val smsId: Long = 0,
     val mmsId: Long = 0,
     val read: Boolean = true,
+    val blockReason: BlockedReason = BlockedReason.NUMBER,
 ) {
     fun title(): String {
         return if (senderName.isNotBlank() && senderName != address) senderName else address

@@ -142,6 +142,8 @@
     <string name="add_blocked_number_helper_text">Enter a number or a pattern. * matches any text and ? matches one character, like an MS-DOS file name. The pattern matches the whole number. For example, +985000* blocks numbers that start with +985000, and *3000* blocks numbers that contain 3000. A number without * or ? still blocks that number.</string>
     <string name="add_a_blocked_keyword">Add a blocked keyword</string>
     <string name="blocked_messages">Blocked messages</string>
+    <string name="blocked_number">Blocked Number</string>
+    <string name="blocked_by_keyword">Blocked by keyword</string>
     <string name="show_blocked_messages_tab">Show blocked messages tab</string>
     <string name="blocked_messages_background">Blocked messages background</string>
     <string name="blocked_messages_light_background">Blocked messages light background</string>

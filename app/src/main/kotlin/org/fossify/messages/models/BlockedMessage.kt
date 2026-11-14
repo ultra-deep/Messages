@@ -12,4 +12,5 @@ data class BlockedMessage(
     @ColumnInfo(name = "date") val date: Long,
     @ColumnInfo(name = "subscription_id") val subscriptionId: Int,
     @ColumnInfo(name = "read") val read: Boolean = false,
+    @ColumnInfo(name = "block_reason") val blockReason: Int = BlockedReason.UNSPECIFIED.value,
 )

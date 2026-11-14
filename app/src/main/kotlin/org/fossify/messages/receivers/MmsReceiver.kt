@@ -25,7 +25,7 @@ import org.fossify.messages.extensions.shouldUnarchive
 import org.fossify.messages.extensions.syncStoredUnreadCounts
 import org.fossify.messages.extensions.showReceivedMessageNotification
 import org.fossify.messages.extensions.updateConversationArchivedStatus
-import org.fossify.messages.helpers.ReceiverUtils.isIncomingMessageBlocked
+import org.fossify.messages.helpers.ReceiverUtils.getIncomingMessageBlockReason
 import org.fossify.messages.helpers.isBlockedSender
 import org.fossify.messages.helpers.refreshBlockedMessages
 import org.fossify.messages.helpers.refreshConversations
@@ -49,7 +49,8 @@ class MmsReceiver : MmsReceivedReceiver() {
 
         val address = mms.getSender()?.phoneNumbers?.firstOrNull()?.normalizedNumber ?: mms.senderPhoneNumber
         ensureBackgroundThread {
-            if (isIncomingMessageBlocked(context, address, mms.body)) {
+            val blockReason = getIncomingMessageBlockReason(context, address, mms.body)
+            if (blockReason != null) {
                 // Never keep a keyword/unknown-blocked (or blocked-sender) thread in the
                 // Messages inbox. Re-sync will restore the row if other real messages remain.
                 context.conversationsDB.deleteThreadId(mms.threadId)
@@ -60,6 +61,7 @@ class MmsReceiver : MmsReceivedReceiver() {
                         body = body,
                         dateMillis = mms.millis(),
                         subscriptionId = mms.subscriptionId,
+                        blockReason = blockReason,
                     )
                     if (mms.id != 0L) {
                         context.deleteMessage(mms.id, isMMS = true)

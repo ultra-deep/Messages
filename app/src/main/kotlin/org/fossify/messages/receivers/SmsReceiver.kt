@@ -21,7 +21,7 @@ import org.fossify.messages.extensions.shouldUnarchive
 import org.fossify.messages.extensions.syncStoredUnreadCounts
 import org.fossify.messages.extensions.showReceivedMessageNotification
 import org.fossify.messages.extensions.updateConversationArchivedStatus
-import org.fossify.messages.helpers.ReceiverUtils.isIncomingMessageBlocked
+import org.fossify.messages.helpers.ReceiverUtils.getIncomingMessageBlockReason
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.helpers.refreshMessages
 import org.fossify.messages.models.Message
@@ -44,7 +44,8 @@ class SmsReceiver : BroadcastReceiver() {
                 val status = parts.last().status
                 val body = buildString { parts.forEach { append(it.messageBody.orEmpty()) } }
                 val subscriptionId = intent.getIntExtra("subscription", -1)
-                if (isIncomingMessageBlocked(appContext, address, body)) {
+                val blockReason = getIncomingMessageBlockReason(appContext, address, body)
+                if (blockReason != null) {
                     // Store locally only. Writing into Telephony creates a thread that can
                     // show up as an empty conversation in the Messages list (provider
                     // messages from blocked senders are hidden when the thread is opened).
@@ -53,6 +54,7 @@ class SmsReceiver : BroadcastReceiver() {
                         body = body,
                         dateMillis = System.currentTimeMillis(),
                         subscriptionId = subscriptionId,
+                        blockReason = blockReason,
                     )
                     // Drop any stale empty inbox row for this sender after keyword blocks.
                     refreshConversations()

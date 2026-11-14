@@ -18,11 +18,13 @@ import org.fossify.commons.models.BlockedNumber
 import org.fossify.commons.models.PhoneNumber
 import org.fossify.commons.models.SimpleContact
 import org.fossify.messages.R
+import org.fossify.messages.helpers.ReceiverUtils.inferBlockedReason
 import org.fossify.messages.helpers.isBlockedSender
 import org.fossify.messages.helpers.refreshBlockedMessages
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.models.BlockedMessage
 import org.fossify.messages.models.BlockedMessageEntry
+import org.fossify.messages.models.BlockedReason
 import org.fossify.messages.models.Conversation
 import org.fossify.messages.models.Message
 
@@ -89,6 +91,7 @@ fun Context.saveBlockedMessage(
     body: String,
     dateMillis: Long,
     subscriptionId: Int,
+    blockReason: BlockedReason,
 ) {
     try {
         blockedMessagesDB.insert(
@@ -97,6 +100,7 @@ fun Context.saveBlockedMessage(
                 body = body,
                 date = dateMillis,
                 subscriptionId = subscriptionId,
+                blockReason = blockReason.value,
             )
         )
         noteBlockedUnreadChange(1)
@@ -237,6 +241,7 @@ fun Message.toBlockedMessageEntry(): BlockedMessageEntry {
         smsId = smsId,
         mmsId = mmsId,
         read = read,
+        blockReason = BlockedReason.NUMBER,
     )
 }
 
@@ -314,6 +319,12 @@ private fun Context.toBlockedConversations(entries: List<BlockedMessageEntry>): 
 private fun Context.loadLocalBlockedMessages(): List<BlockedMessageEntry> {
     return try {
         blockedMessagesDB.getAll().map { message ->
+            val storedReason = BlockedReason.fromValue(message.blockReason)
+            val blockReason = if (storedReason == BlockedReason.UNSPECIFIED) {
+                inferBlockedReason(this, message.body)
+            } else {
+                storedReason
+            }
             BlockedMessageEntry(
                 address = message.address,
                 senderName = message.address,
@@ -322,6 +333,7 @@ private fun Context.loadLocalBlockedMessages(): List<BlockedMessageEntry> {
                 subscriptionId = message.subscriptionId,
                 localId = message.id,
                 read = message.read,
+                blockReason = blockReason,
             )
         }
     } catch (_: Exception) {
@@ -356,6 +368,7 @@ private fun Context.loadProviderBlockedMessages(): List<BlockedMessageEntry> {
                 dateMillis = cursor.getLongValue(Sms.DATE),
                 smsId = cursor.getLongValue(Sms._ID),
                 read = cursor.getIntValue(Sms.READ) == 1,
+                blockReason = BlockedReason.NUMBER,
             )
         )
     }
@@ -383,6 +396,7 @@ private fun Context.loadProviderBlockedMessages(): List<BlockedMessageEntry> {
                 subscriptionId = cursor.getIntValueOr(Mms.SUBSCRIPTION_ID, defaultValue = 0),
                 mmsId = messageId,
                 read = cursor.getIntValue(Mms.READ) == 1,
+                blockReason = BlockedReason.NUMBER,
             )
         )
     }
@@ -547,7 +561,7 @@ private fun Context.toBlockedConversation(entries: List<BlockedMessageEntry>): C
     val namePhoto = getNameAndPhotoFromPhoneNumber(latest.address)
     return Conversation(
         threadId = stableBlockedThreadId(latest.conversationKey()),
-        snippet = latest.body,
+        snippet = latest.blockReason.label(this),
         date = latest.dateMillis.toConversationDate(),
         read = unreadCount == 0,
         title = namePhoto.name.ifBlank { latest.address },

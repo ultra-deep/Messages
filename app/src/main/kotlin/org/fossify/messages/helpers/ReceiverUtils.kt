@@ -6,6 +6,7 @@ import org.fossify.commons.extensions.getMyContactsCursor
 import org.fossify.commons.helpers.ContactLookupResult
 import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.messages.extensions.config
+import org.fossify.messages.models.BlockedReason
 
 object ReceiverUtils {
 
@@ -19,19 +20,39 @@ object ReceiverUtils {
         return false
     }
 
-    fun isIncomingMessageBlocked(context: Context, address: String, body: String): Boolean {
+    fun getIncomingMessageBlockReason(
+        context: Context,
+        address: String,
+        body: String,
+    ): BlockedReason? {
         if (isMessageFilteredOut(context, body)) {
-            return true
+            return BlockedReason.KEYWORD
         }
         if (context.isBlockedSender(address)) {
-            return true
+            return BlockedReason.NUMBER
         }
         if (!context.baseConfig.blockUnknownNumbers) {
-            return false
+            return null
         }
 
         val privateCursor = context.getMyContactsCursor(favoritesOnly = false, withPhoneNumbersOnly = true)
         val result = SimpleContactsHelper(context).existsSync(address, privateCursor)
-        return result == ContactLookupResult.NotFound
+        return if (result == ContactLookupResult.NotFound) {
+            BlockedReason.NUMBER
+        } else {
+            null
+        }
+    }
+
+    fun isIncomingMessageBlocked(context: Context, address: String, body: String): Boolean {
+        return getIncomingMessageBlockReason(context, address, body) != null
+    }
+
+    fun inferBlockedReason(context: Context, body: String): BlockedReason {
+        return if (isMessageFilteredOut(context, body)) {
+            BlockedReason.KEYWORD
+        } else {
+            BlockedReason.NUMBER
+        }
     }
 }
