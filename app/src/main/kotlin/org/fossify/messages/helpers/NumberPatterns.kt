@@ -18,37 +18,17 @@ fun normalizeNumberPatterns(raw: String): String {
 }
 
 fun isUsableNumberPattern(pattern: String): Boolean {
-    return pattern.any { it.isDigit() }
+    return pattern.any { it.isDigit() } && regexOrNull(pattern) != null
 }
 
+/**
+ * [pattern] is a case-insensitive regular expression. It is searched in the number and,
+ * separately, in the number's digits, so `989000` matches a number that contains those digits
+ * and `^989000` matches a number whose digits start with them.
+ */
 fun matchesNumberPattern(number: String, pattern: String): Boolean {
     val digits = number.filter { it.isDigit() }
-    if (digits.isEmpty()) {
-        return false
-    }
-    val normalizedPattern = buildString {
-        pattern.forEach { character ->
-            when {
-                character == '*' -> append('*')
-                character.isDigit() -> append(character)
-            }
-        }
-    }
-    if (normalizedPattern.none { it.isDigit() }) {
-        return false
-    }
-    val regex = buildString {
-        append('^')
-        normalizedPattern.forEach { character ->
-            if (character == '*') {
-                append(".*")
-            } else {
-                append(character)
-            }
-        }
-        append('$')
-    }
-    return Regex(regex).matches(digits)
+    return matchesAnyRegexForm(pattern, number, digits)
 }
 
 fun matchingPatternGroup(

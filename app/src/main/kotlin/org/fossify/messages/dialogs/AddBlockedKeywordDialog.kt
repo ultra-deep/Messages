@@ -5,9 +5,12 @@ import org.fossify.commons.activities.BaseSimpleActivity
 import org.fossify.commons.extensions.getAlertDialogBuilder
 import org.fossify.commons.extensions.setupDialogStuff
 import org.fossify.commons.extensions.showKeyboard
+import org.fossify.commons.extensions.toast
 import org.fossify.commons.extensions.value
+import org.fossify.messages.R
 import org.fossify.messages.databinding.DialogAddBlockedKeywordBinding
 import org.fossify.messages.extensions.config
+import org.fossify.messages.helpers.regexOrNull
 
 class AddBlockedKeywordDialog(val activity: BaseSimpleActivity, private val originalKeyword: String? = null, val callback: () -> Unit) {
     init {
@@ -25,6 +28,10 @@ class AddBlockedKeywordDialog(val activity: BaseSimpleActivity, private val orig
                     alertDialog.showKeyboard(binding.addBlockedKeywordEdittext)
                     alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                         val newBlockedKeyword = binding.addBlockedKeywordEdittext.value
+                        if (newBlockedKeyword.isNotEmpty() && regexOrNull(newBlockedKeyword) == null) {
+                            activity.toast(R.string.blocked_keyword_invalid_pattern)
+                            return@setOnClickListener
+                        }
                         if (originalKeyword != null && newBlockedKeyword != originalKeyword) {
                             activity.config.removeBlockedKeyword(originalKeyword)
                         }
