@@ -18,8 +18,10 @@ import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.setupDialogStuff
 import org.fossify.commons.extensions.showKeyboard
 import org.fossify.commons.extensions.toast
+import org.fossify.commons.extensions.underlineText
 import org.fossify.commons.views.MyTextView
 import org.fossify.messages.R
+import org.fossify.messages.activities.SimpleActivity
 import org.fossify.messages.databinding.DialogGroupNameBinding
 import org.fossify.messages.databinding.ItemGroupNumberPatternBinding
 import org.fossify.messages.extensions.showBackgroundColorPreview
@@ -125,6 +127,7 @@ class GroupNameDialog(
             .setNegativeButton(org.fossify.commons.R.string.cancel, null)
             .apply {
                 activity.setupDialogStuff(binding.root, this, titleRes) { alertDialog ->
+                    wirePatternBuilder(binding)
                     dialog = alertDialog
                     if (initialName.isEmpty()) {
                         alertDialog.showKeyboard(binding.groupNameEditText)
@@ -134,34 +137,57 @@ class GroupNameDialog(
                         )
                     }
                     alertDialog.getButton(BUTTON_POSITIVE).setOnClickListener {
-                        val name = binding.groupNameEditText.text?.toString().orEmpty().trim()
-                        if (name.isEmpty()) {
-                            activity.toast(org.fossify.commons.R.string.empty_name)
-                            return@setOnClickListener
-                        }
-                        if (isNameTaken(name)) {
-                            activity.toast(R.string.group_name_exists)
-                            return@setOnClickListener
-                        }
-                        if (!addPattern(binding)) {
-                            return@setOnClickListener
-                        }
-                        callback(
-                            ConversationGroupForm(
-                                name = name,
-                                backgroundColor = selectedLightColor,
-                                darkBackgroundColor = selectedDarkColor,
-                                showNotification = binding.groupShowNotificationCheckbox.isChecked,
-                                notificationSound = binding.groupNotificationSoundCheckbox.isChecked,
-                                notificationVibration =
-                                    binding.groupNotificationVibrationCheckbox.isChecked,
-                                numberPatterns = patterns.joinToString("\n"),
-                            )
-                        )
-                        alertDialog.dismiss()
+                        saveGroup(binding, alertDialog, selectedLightColor, selectedDarkColor)
                     }
                 }
             }
+    }
+
+    private fun saveGroup(
+        binding: DialogGroupNameBinding,
+        alertDialog: AlertDialog,
+        lightColor: Int,
+        darkColor: Int,
+    ) {
+        val name = binding.groupNameEditText.text?.toString().orEmpty().trim()
+        if (name.isEmpty()) {
+            activity.toast(org.fossify.commons.R.string.empty_name)
+            return
+        }
+        if (isNameTaken(name)) {
+            activity.toast(R.string.group_name_exists)
+            return
+        }
+        if (!addPattern(binding)) {
+            return
+        }
+        callback(
+            ConversationGroupForm(
+                name = name,
+                backgroundColor = lightColor,
+                darkBackgroundColor = darkColor,
+                showNotification = binding.groupShowNotificationCheckbox.isChecked,
+                notificationSound = binding.groupNotificationSoundCheckbox.isChecked,
+                notificationVibration = binding.groupNotificationVibrationCheckbox.isChecked,
+                numberPatterns = patterns.joinToString("\n"),
+            )
+        )
+        alertDialog.dismiss()
+    }
+
+    private fun wirePatternBuilder(binding: DialogGroupNameBinding) {
+        val host = activity as? SimpleActivity
+        binding.groupNumberPatternBuild.beVisibleIf(host != null)
+        if (host == null) {
+            return
+        }
+        binding.groupNumberPatternBuild.underlineText()
+        binding.groupNumberPatternBuild.setTextColor(activity.getProperPrimaryColor())
+        binding.groupNumberPatternBuild.setOnClickListener {
+            host.launchRegexBuilder { pattern ->
+                binding.groupNumberPatternInput.setText(pattern)
+            }
+        }
     }
 
     private fun renderPatterns(binding: DialogGroupNameBinding, textColor: Int) {

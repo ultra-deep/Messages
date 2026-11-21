@@ -64,6 +64,7 @@ import org.fossify.messages.databinding.ItemThreadDateTimeBinding
 import org.fossify.messages.databinding.ItemThreadErrorBinding
 import org.fossify.messages.databinding.ItemThreadSendingBinding
 import org.fossify.messages.databinding.ItemThreadSuccessBinding
+import org.fossify.messages.dialogs.AddBlockedKeywordDialog
 import org.fossify.messages.dialogs.DeleteConfirmationDialog
 import org.fossify.messages.dialogs.MessageDetailsDialog
 import org.fossify.messages.dialogs.SelectTextDialog
@@ -148,6 +149,7 @@ class ThreadAdapter(
             findItem(R.id.cab_share).isVisible = isOneItemSelected && hasText
             findItem(R.id.cab_forward_message).isVisible = isOneItemSelected
             findItem(R.id.cab_select_text).isVisible = isOneItemSelected && hasText
+            findItem(R.id.cab_block_keyword).isVisible = isOneItemSelected && hasText
             findItem(R.id.cab_properties).isVisible = isOneItemSelected
             findItem(R.id.cab_restore).isVisible = isRecycleBin
         }
@@ -164,6 +166,7 @@ class ThreadAdapter(
             R.id.cab_share -> shareText()
             R.id.cab_forward_message -> forwardMessage()
             R.id.cab_select_text -> selectText()
+            R.id.cab_block_keyword -> blockKeyword()
             R.id.cab_delete -> askConfirmDelete()
             R.id.cab_restore -> askConfirmRestore()
             R.id.cab_select_all -> selectAll()
@@ -303,6 +306,16 @@ class ThreadAdapter(
         val firstItem = getSelectedItems().firstOrNull() as? Message ?: return
         if (firstItem.body.trim().isNotEmpty()) {
             SelectTextDialog(activity, firstItem.body)
+        }
+    }
+
+    private fun blockKeyword() {
+        val body = (getSelectedItems().firstOrNull() as? Message)?.body.orEmpty()
+        if (body.isBlank()) {
+            return
+        }
+        AddBlockedKeywordDialog(activity, initialText = body) {
+            finishActMode()
         }
     }
 

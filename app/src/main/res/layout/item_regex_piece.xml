@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/regex_piece_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="@dimen/small_margin"
+    android:paddingBottom="@dimen/small_margin">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginBottom="@dimen/small_margin"
+        android:background="?android:attr/listDivider" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Spinner
+            android:id="@+id/regex_piece_kind"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+        <ImageView
+            android:id="@+id/regex_piece_up"
+            android:layout_width="@dimen/medium_icon_size"
+            android:layout_height="@dimen/medium_icon_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/regex_move_piece_up"
+            android:padding="@dimen/small_margin"
+            android:rotation="180"
+            android:src="@drawable/ic_arrow_down_vector" />
+
+        <ImageView
+            android:id="@+id/regex_piece_down"
+            android:layout_width="@dimen/medium_icon_size"
+            android:layout_height="@dimen/medium_icon_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/regex_move_piece_down"
+            android:padding="@dimen/small_margin"
+            android:src="@drawable/ic_arrow_down_vector" />
+
+        <ImageView
+            android:id="@+id/regex_piece_remove"
+            android:layout_width="@dimen/medium_icon_size"
+            android:layout_height="@dimen/medium_icon_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/regex_remove_piece"
+            android:padding="@dimen/small_margin"
+            android:src="@drawable/ic_cross_vector" />
+
+    </LinearLayout>
+
+    <org.fossify.commons.views.MyTextInputLayout
+        android:id="@+id/regex_piece_text_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/regex_words_hint">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/regex_piece_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text|textNoSuggestions"
+            android:maxLines="1" />
+
+    </org.fossify.commons.views.MyTextInputLayout>
+
+    <LinearLayout
+        android:id="@+id/regex_piece_count_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <Spinner
+            android:id="@+id/regex_piece_count_mode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+        <org.fossify.commons.views.MyEditText
+            android:id="@+id/regex_piece_count"
+            android:layout_width="72dp"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="3"
+            android:maxLines="1" />
+
+        <org.fossify.commons.views.MyTextView
+            android:id="@+id/regex_piece_count_to"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="@dimen/small_margin"
+            android:paddingEnd="@dimen/small_margin"
+            android:text="@string/regex_count_to" />
+
+        <org.fossify.commons.views.MyEditText
+            android:id="@+id/regex_piece_count_end"
+            android:layout_width="72dp"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="3"
+            android:maxLines="1" />
+
+    </LinearLayout>
+</LinearLayout>
