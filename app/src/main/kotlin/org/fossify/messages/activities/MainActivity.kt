@@ -19,6 +19,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.appcompat.content.res.AppCompatResources
 import com.google.android.material.tabs.TabLayout
 import org.fossify.commons.dialogs.ConfirmationDialog
@@ -97,6 +98,7 @@ import org.fossify.messages.extensions.excludingEmptyConversations
 import org.fossify.messages.extensions.getConversations
 import org.fossify.messages.extensions.getMessages
 import org.fossify.messages.extensions.getUnreadCountsByThread
+import org.fossify.messages.extensions.patternPriorityNumbersByThread
 import org.fossify.messages.extensions.syncStoredUnreadCounts
 import org.fossify.messages.extensions.unreadBlockedBadgeText
 import org.fossify.messages.extensions.insertOrUpdateConversation
@@ -157,7 +159,8 @@ class MainActivity : SimpleActivity() {
     private var knownBlockedUnreadCount: Int? = null
     private var knownArchivedUnreadCount: Int? = null
     private var knownGroupUnreadCounts = emptyMap<Long, Int>()
-    private val pendingTabBadges = HashMap<Int, TabBadge>()
+    private var tabNormalTextColor = Color.GRAY
+    private var tabSelectedTextColor = Color.BLACK
     private var unreadTotalButton: FrameLayout? = null
     private var unreadTotalIcon: ImageView? = null
     private var unreadTotalBadge: MyTextView? = null
@@ -301,9 +304,8 @@ class MainActivity : SimpleActivity() {
     }
 
     private fun setupConversationTabs() {
-        binding.conversationsTabs.clipChildren = false
-        binding.conversationsTabs.clipToPadding = false
-        (binding.conversationsTabs.parent as? ViewGroup)?.clipChildren = false
+        binding.conversationsTabs.clipChildren = true
+        binding.conversationsTabs.clipToPadding = true
         binding.conversationsTabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 showConversationTab(tab.position)
@@ -388,13 +390,12 @@ class MainActivity : SimpleActivity() {
         }
 
         visibleTabs = nextTabs
-        pendingTabBadges.clear()
         ignoreTabSelection = true
         try {
             val tabs = binding.conversationsTabs
             tabs.removeAllTabs()
             nextTabs.forEach { tab ->
-                tabs.addTab(tabs.newTab().setText(tabLabel(tab, groups)), false)
+                tabs.addTab(newConversationTab(tabLabel(tab, groups), tab.key), false)
             }
             updateTabMode()
             styleConversationTabs()
@@ -433,8 +434,8 @@ class MainActivity : SimpleActivity() {
     private fun styleConversationTabs() {
         val primaryColor = getProperPrimaryColor()
         binding.conversationsTabs.setSelectedTabIndicatorColor(primaryColor)
-        binding.conversationsTabs.setTabTextColors(getProperTextColor(), primaryColor)
         binding.conversationsTabs.setBackgroundColor(getProperBackgroundColor())
+        applyConversationTabTextColors(getProperTextColor(), primaryColor)
     }
 
     private fun conversationListBackgroundColor(): Int {
@@ -478,8 +479,8 @@ class MainActivity : SimpleActivity() {
         val selectedTabColor = if (useThemeColors) getProperPrimaryColor() else contentColor
         val normalTabColor = if (useThemeColors) contentColor else contentColor.adjustAlpha(0.7f)
         binding.conversationsTabs.setBackgroundColor(backgroundColor)
-        binding.conversationsTabs.setTabTextColors(normalTabColor, selectedTabColor)
         binding.conversationsTabs.setSelectedTabIndicatorColor(selectedTabColor)
+        applyConversationTabTextColors(normalTabColor, selectedTabColor)
         if (useThemeColors) {
             binding.mainMenu.updateColors()
         } else {
@@ -1076,53 +1077,81 @@ class MainActivity : SimpleActivity() {
         return "$name (${unreadBlockedBadgeText(count)})"
     }
 
+    private fun newConversationTab(label: String, tabKey: String): TabLayout.Tab {
+        val view = layoutInflater.inflate(R.layout.view_conversation_tab, binding.conversationsTabs, false)
+        view.tag = tabKey
+        view.findViewById<TextView>(R.id.conversation_tab_title).apply {
+            text = label
+            setTextColor(tabNormalTextColor)
+        }
+        view.findViewById<TextView>(R.id.conversation_tab_badge).apply {
+            background = AppCompatResources.getDrawable(
+                this@MainActivity,
+                org.fossify.commons.R.drawable.circle_background,
+            )?.mutate()
+            setTypeface(FontHelper.getTypeface(this@MainActivity), Typeface.BOLD)
+            setTextSize(
+                TypedValue.COMPLEX_UNIT_PX,
+                resources.getDimension(org.fossify.commons.R.dimen.list_tertiary_text_size),
+            )
+            beGone()
+        }
+        return binding.conversationsTabs.newTab().setCustomView(view).setContentDescription(label)
+    }
+
+    private fun applyConversationTabTextColors(normalColor: Int, selectedColor: Int) {
+        tabNormalTextColor = normalColor
+        tabSelectedTextColor = selectedColor
+        binding.conversationsTabs.setTabTextColors(normalColor, selectedColor)
+        val count = binding.conversationsTabs.tabCount
+        for (index in 0 until count) {
+            val tab = binding.conversationsTabs.getTabAt(index) ?: continue
+            tab.customView?.findViewById<TextView>(R.id.conversation_tab_title)?.setTextColor(
+                if (tab.isSelected) selectedColor else normalColor,
+            )
+        }
+    }
+
     private fun applyTabBadge(
         index: Int,
         count: Int,
         backgroundColor: Int = getProperPrimaryColor(),
     ) {
-        val tab = binding.conversationsTabs.getTabAt(index) ?: return
-        pendingTabBadges[index] = TabBadge(count, backgroundColor)
+        val tabKey = visibleTabs.getOrNull(index)?.key ?: return
+        val tab = tabForKey(tabKey) ?: return
         drawTabBadge(tab, count, backgroundColor)
-        val tabView = tab.view
-        if (!tabView.isLaidOut || tabView.width == 0) {
-            tabView.post { drawPendingTabBadge(index) }
-        }
     }
 
-    private fun drawPendingTabBadge(index: Int) {
-        if (isDestroyed || isFinishing) {
-            return
+    private fun tabForKey(tabKey: String): TabLayout.Tab? {
+        val count = binding.conversationsTabs.tabCount
+        for (index in 0 until count) {
+            val tab = binding.conversationsTabs.getTabAt(index) ?: continue
+            if (tab.customView?.tag == tabKey) {
+                return tab
+            }
         }
-        val pending = pendingTabBadges[index] ?: return
-        val tab = binding.conversationsTabs.getTabAt(index) ?: return
-        drawTabBadge(tab, pending.count, pending.backgroundColor)
+        return null
     }
 
     private fun drawTabBadge(tab: TabLayout.Tab, count: Int, backgroundColor: Int) {
+        tab.removeBadge()
+        val badge = tab.customView?.findViewById<TextView>(R.id.conversation_tab_badge) ?: return
         if (count <= 0) {
-            tab.removeBadge()
+            badge.beGone()
             return
         }
-        tab.orCreateBadge.apply {
-            maxCharacterCount = TAB_BADGE_CHARACTERS
-            number = count
-            setVisible(true)
-            setTextAppearance(R.style.TextAppearance_Messages_TabBadge)
-            this.backgroundColor = backgroundColor
-            badgeTextColor = backgroundColor.getContrastColor()
-        }
+        badge.text = unreadBlockedBadgeText(count)
+        badge.setTextColor(backgroundColor.getContrastColor())
+        badge.background?.applyColorFilter(backgroundColor)
+        badge.beVisible()
     }
 
     private fun reapplyKnownTabBadges() {
         updateMessagesTabBadge()
         knownBlockedUnreadCount?.let { updateBlockedTabBadge(it) }
         knownArchivedUnreadCount?.let { updateArchivedTabBadge(it) }
-        if (knownGroupUnreadCounts.isEmpty()) {
-            return
-        }
         conversationGroups.forEach { group ->
-            val count = knownGroupUnreadCounts[group.id] ?: return@forEach
+            val count = knownGroupUnreadCounts[group.id] ?: 0
             val index = groupTabIndex(group.id)
             if (index >= 0) {
                 applyTabBadge(index, count, groupTabBadgeColor(group))
@@ -1209,10 +1238,11 @@ class MainActivity : SimpleActivity() {
         }
         val explicitUi = explicit.withLiveUnreadCounts(unreadMap)
         val ungroupedUi = ungrouped.withLiveUnreadCounts(unreadMap)
+        val priorityNumbers = patternPriorityNumbersByThread()
         return ConversationGroupState(
             groups = groups,
-            grouped = explicitUi + ungroupedUi.patternGroupCopies(groups),
-            inbox = ungroupedUi.excludingPatternGroups(groups),
+            grouped = explicitUi + ungroupedUi.patternGroupCopies(groups, priorityNumbers),
+            inbox = ungroupedUi.excludingPatternGroups(groups, priorityNumbers),
         )
     }
 
@@ -1236,7 +1266,7 @@ class MainActivity : SimpleActivity() {
         }
         val explicit = conversations.filter { !it.isArchived && it.groupId != 0L }
         val ungrouped = conversations.filter { !it.isArchived && it.groupId == 0L }
-        val grouped = explicit + ungrouped.patternGroupCopies(groups)
+        val grouped = explicit + ungrouped.patternGroupCopies(groups, patternPriorityNumbersByThread())
         val unreadCounts = grouped.groupBy { it.groupId }.mapValues { (_, items) ->
             items.sumOf { it.unreadCount }
         }
@@ -1574,6 +1604,7 @@ class MainActivity : SimpleActivity() {
                 emptyList()
             }
             val archivedForUi = archivedConversationsForUi()
+            val priorityNumbers = patternPriorityNumbersByThread()
 
             runOnUiThread {
                 if (!isCurrentConversationReload(generation)) {
@@ -1583,7 +1614,10 @@ class MainActivity : SimpleActivity() {
                 if (showingArchivedTab) {
                     showArchivedConversations(ArrayList(archivedForUi))
                 }
-                setupConversations(conversations.excludingPatternGroups(groups), cached = true)
+                setupConversations(
+                    conversations.excludingPatternGroups(groups, priorityNumbers),
+                    cached = true,
+                )
                 refreshConversationGroups()
                 getNewConversations(
                     cachedConversations = (conversations + archived).toMutableList() as ArrayList<Conversation>,
@@ -1700,12 +1734,13 @@ class MainActivity : SimpleActivity() {
             } catch (_: Exception) {
                 null
             }
+            val priorityNumbers = patternPriorityNumbersByThread()
             val allConversations = try {
                 excludingEmptyConversations(
                     excludingBlockedSenders(
                         conversationsDB.getNonArchived().withLiveUnreadCounts(unreadMap)
                     )
-                ).excludingPatternGroups(groups)
+                ).excludingPatternGroups(groups, priorityNumbers)
             } catch (_: Exception) {
                 ArrayList()
             }
@@ -2053,8 +2088,6 @@ class MainActivity : SimpleActivity() {
         }
     }
 
-    private data class TabBadge(val count: Int, val backgroundColor: Int)
-
     private data class QuickGroupBadges(
         val groups: List<ConversationGroup>,
         val unreadCounts: Map<Long, Int>,
@@ -2066,7 +2099,4 @@ class MainActivity : SimpleActivity() {
         val inbox: ArrayList<Conversation>,
     )
 
-    companion object {
-        private const val TAB_BADGE_CHARACTERS = 3
-    }
 }

@@ -360,6 +360,100 @@ fun Context.getUnreadCountsByThread(): Map<Long, Int>? {
     }
 }
 
+/**
+ * Number that should decide a conversation's pattern group: the sender of an unread
+ * message when there is one, otherwise the latest incoming sender still stored locally.
+ */
+fun Context.patternPriorityNumbersByThread(): Map<Long, String> {
+    val senders = HashMap<Long, String>()
+    try {
+        messagesDB.latestIncomingSenders().forEach { row ->
+            if (row.senderPhoneNumber.isNotBlank()) {
+                senders[row.threadId] = row.senderPhoneNumber
+            }
+        }
+    } catch (_: Exception) {
+    }
+    unreadIncomingSenders().forEach { (threadId, address) ->
+        if (address.isNotBlank()) {
+            senders[threadId] = address
+        }
+    }
+    return senders
+}
+
+fun Context.patternPriorityNumber(threadId: Long): String? {
+    if (threadId == 0L) {
+        return null
+    }
+    unreadIncomingSenders(threadId)[threadId]?.takeIf { it.isNotBlank() }?.let { return it }
+    return try {
+        messagesDB.latestIncomingSender(threadId)?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun Context.unreadIncomingSenders(threadId: Long? = null): Map<Long, String> {
+    return try {
+        val newest = HashMap<Long, Pair<Long, String>>()
+        fun consider(id: Long, address: String, date: Long) {
+            if (address.isBlank()) {
+                return
+            }
+            val current = newest[id]
+            if (current == null || date >= current.first) {
+                newest[id] = date to address
+            }
+        }
+
+        val smsSelection = if (threadId == null) {
+            "${Sms.READ}=0 AND ${Sms.TYPE}=${Sms.MESSAGE_TYPE_INBOX}"
+        } else {
+            "${Sms.READ}=0 AND ${Sms.TYPE}=${Sms.MESSAGE_TYPE_INBOX} AND ${Sms.THREAD_ID}=?"
+        }
+        val smsArgs = if (threadId == null) null else arrayOf(threadId.toString())
+        queryCursor(
+            uri = Sms.CONTENT_URI,
+            projection = arrayOf(Sms.THREAD_ID, Sms.ADDRESS, Sms.DATE),
+            selection = smsSelection,
+            selectionArgs = smsArgs,
+            sortOrder = "${Sms.DATE} DESC",
+            showErrors = false,
+        ) { cursor ->
+            consider(
+                id = cursor.getLongValue(Sms.THREAD_ID),
+                address = cursor.getStringValue(Sms.ADDRESS) ?: "",
+                date = cursor.getLongValue(Sms.DATE),
+            )
+        }
+
+        val mmsSelection = if (threadId == null) {
+            "${Mms.READ}=0 AND ${Mms.MESSAGE_BOX}=${Mms.MESSAGE_BOX_INBOX}"
+        } else {
+            "${Mms.READ}=0 AND ${Mms.MESSAGE_BOX}=${Mms.MESSAGE_BOX_INBOX} AND ${Mms.THREAD_ID}=?"
+        }
+        queryCursor(
+            uri = Mms.CONTENT_URI,
+            projection = arrayOf(Mms._ID, Mms.THREAD_ID, Mms.DATE),
+            selection = mmsSelection,
+            selectionArgs = smsArgs,
+            sortOrder = "${Mms.DATE} DESC",
+            showErrors = false,
+        ) { cursor ->
+            val id = cursor.getLongValue(Mms._ID)
+            consider(
+                id = cursor.getLongValue(Mms.THREAD_ID),
+                address = getMMSSender(id),
+                date = cursor.getLongValue(Mms.DATE) * 1000L,
+            )
+        }
+        newest.mapValues { it.value.second }
+    } catch (_: Exception) {
+        emptyMap()
+    }
+}
+
 fun Context.syncStoredUnreadCounts(stillCurrent: () -> Boolean = { true }) {
     if (!stillCurrent()) {
         return

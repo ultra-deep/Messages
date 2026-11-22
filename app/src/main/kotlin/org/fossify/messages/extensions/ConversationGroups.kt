@@ -10,9 +10,7 @@ import org.fossify.commons.models.RadioItem
 import org.fossify.messages.R
 import org.fossify.messages.dialogs.GroupNameDialog
 import org.fossify.messages.helpers.matchingPatternGroup
-import org.fossify.messages.helpers.matchesNumberPattern
 import org.fossify.messages.helpers.normalizeNumberPatterns
-import org.fossify.messages.helpers.numberPatternsOf
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.models.Conversation
 import org.fossify.messages.models.ConversationGroup
@@ -73,15 +71,14 @@ fun Context.groupMessageAlert(threadId: Long, address: String): GroupMessageAler
         } else {
             null
         }
-        val patternBlocked = conversation?.isArchived == true || conversation?.ignoreNumberPattern == true
-        val group = explicitGroup ?: if (patternBlocked) {
-            null
-        } else {
-            groups.firstOrNull { candidate ->
-                matchesGroupPattern(candidate, address) ||
-                    (conversation != null && matchesGroupPattern(candidate, conversation.phoneNumber))
-            }
-        }
+        val group = explicitGroup ?: matchingPatternGroup(
+            groups = groups,
+            phoneNumber = conversation?.phoneNumber.orEmpty(),
+            groupId = 0L,
+            isArchived = conversation?.isArchived == true,
+            ignoreNumberPattern = conversation?.ignoreNumberPattern == true,
+            priorityNumbers = listOf(address),
+        )
         if (group == null) {
             defaultGroupMessageAlert
         } else {
@@ -108,6 +105,7 @@ fun Context.conversationTabBackgroundColor(threadId: Long): Int {
             groupId = conversation.groupId,
             isArchived = conversation.isArchived,
             ignoreNumberPattern = conversation.ignoreNumberPattern,
+            priorityNumbers = listOfNotNull(patternPriorityNumber(conversation.threadId)),
         )
     }
     return group?.resolvedBackgroundColor(this) ?: Color.TRANSPARENT
@@ -115,12 +113,6 @@ fun Context.conversationTabBackgroundColor(threadId: Long): Int {
 
 fun ConversationGroup.resolvedBackgroundColor(context: Context): Int {
     return context.resolveTabBackgroundColor(backgroundColor, darkBackgroundColor)
-}
-
-private fun matchesGroupPattern(group: ConversationGroup, number: String): Boolean {
-    return numberPatternsOf(group.numberPatterns).any { pattern ->
-        matchesNumberPattern(number, pattern)
-    }
 }
 
 fun Context.deleteConversationGroup(groupId: Long) {
@@ -160,6 +152,7 @@ fun Context.visibleGroupId(conversation: Conversation): Long {
         groupId = conversation.groupId,
         isArchived = conversation.isArchived,
         ignoreNumberPattern = conversation.ignoreNumberPattern,
+        priorityNumbers = listOfNotNull(patternPriorityNumber(conversation.threadId)),
     )?.id ?: 0L
 }
 

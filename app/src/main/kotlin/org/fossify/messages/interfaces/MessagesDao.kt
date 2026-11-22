@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import org.fossify.messages.models.Message
 import org.fossify.messages.models.RecycleBinMessage
+import org.fossify.messages.models.ThreadSenderRow
 
 @Dao
 interface MessagesDao {
@@ -55,6 +56,29 @@ interface MessagesDao {
 
     @Query("SELECT * FROM messages WHERE body LIKE :text")
     fun getMessagesWithText(text: String): List<Message>
+
+    @Query(
+        "SELECT m.thread_id AS thread_id, m.sender_phone_number AS sender_phone_number " +
+            "FROM messages m " +
+            "WHERE m.sender_phone_number != '' " +
+            "AND m.id NOT IN (SELECT id FROM recycle_bin_messages) " +
+            "AND NOT EXISTS (" +
+            "SELECT 1 FROM messages newer " +
+            "WHERE newer.thread_id = m.thread_id " +
+            "AND newer.sender_phone_number != '' " +
+            "AND newer.id NOT IN (SELECT id FROM recycle_bin_messages) " +
+            "AND (newer.date > m.date OR (newer.date = m.date AND newer.id > m.id))" +
+            ")"
+    )
+    fun latestIncomingSenders(): List<ThreadSenderRow>
+
+    @Query(
+        "SELECT sender_phone_number FROM messages " +
+            "WHERE thread_id = :threadId AND sender_phone_number != '' " +
+            "AND id NOT IN (SELECT id FROM recycle_bin_messages) " +
+            "ORDER BY date DESC, id DESC LIMIT 1"
+    )
+    fun latestIncomingSender(threadId: Long): String?
 
     @Query("UPDATE messages SET read = 1 WHERE id = :id")
     fun markRead(id: Long)

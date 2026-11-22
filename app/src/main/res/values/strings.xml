@@ -105,7 +105,7 @@
     <string name="group_notification_sound">Notification sound</string>
     <string name="group_notification_vibration">Notification vibration</string>
     <string name="group_number_patterns">Number patterns</string>
-    <string name="group_number_patterns_hint">A pattern is a regular expression matched against the number and its digits. For example, 989000 matches numbers that contain those digits, and ^989000 matches numbers that start with them. Matching ungrouped messages appear in this group. Remove a conversation to show it in Messages again.</string>
+    <string name="group_number_patterns_hint">A pattern is a regular expression matched against the number and its digits. For example, 989000 matches numbers that contain those digits, and ^989000 matches numbers that start with them. 0912… and +98912… are the same number. If several groups match, the pattern with more digits wins. When the patterns are equally specific, a new message is counted on the sender\'s group. Remove a conversation to show it in Messages again.</string>
     <string name="number_pattern">Number pattern</string>
     <string name="add_number_pattern">Add pattern</string>
     <string name="remove_number_pattern">Remove pattern</string>
