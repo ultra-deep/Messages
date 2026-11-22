@@ -34,7 +34,7 @@
         android:textDirection="locale"
         android:textSize="@dimen/list_primary_text_size"
         app:layout_constraintBottom_toTopOf="@id/conversation_body_short"
-        app:layout_constraintEnd_toStartOf="@id/conversation_date"
+        app:layout_constraintEnd_toStartOf="@id/conversation_block_reason"
         app:layout_constraintStart_toEndOf="@id/conversation_image"
         app:layout_constraintTop_toTopOf="parent"
         tools:text="John" />
@@ -72,6 +72,22 @@
         app:layout_constraintStart_toEndOf="@id/draft_indicator"
         app:layout_constraintTop_toBottomOf="@id/conversation_address"
         tools:text="Hey buddy!" />
+
+    <org.fossify.commons.views.MyTextView
+        android:id="@+id/conversation_block_reason"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/small_margin"
+        android:textAlignment="viewStart"
+        android:textDirection="locale"
+        android:textSize="@dimen/list_tertiary_text_size"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/conversation_date"
+        app:layout_constraintEnd_toStartOf="@id/conversation_date"
+        app:layout_constraintTop_toTopOf="@id/conversation_date"
+        tools:text="#N"
+        tools:visibility="visible" />
 
     <org.fossify.commons.views.MyTextView
         android:id="@+id/conversation_date"

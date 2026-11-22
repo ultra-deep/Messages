@@ -2,6 +2,7 @@ package org.fossify.messages.models
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -22,6 +23,8 @@ data class Conversation(
     @ColumnInfo(name = "group_id") var groupId: Long = 0,
     @ColumnInfo(name = "ignore_number_pattern") var ignoreNumberPattern: Boolean = false,
 ) {
+    @Ignore
+    var blockReason: BlockedReason? = null
 
     companion object {
         fun areItemsTheSame(old: Conversation, new: Conversation): Boolean {
@@ -36,7 +39,8 @@ data class Conversation(
                 old.photoUri == new.photoUri &&
                 old.isGroupConversation == new.isGroupConversation &&
                 old.phoneNumber == new.phoneNumber &&
-                old.unreadCount == new.unreadCount
+                old.unreadCount == new.unreadCount &&
+                old.blockReason == new.blockReason
         }
     }
 }

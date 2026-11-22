@@ -561,7 +561,7 @@ private fun Context.toBlockedConversation(entries: List<BlockedMessageEntry>): C
     val namePhoto = getNameAndPhotoFromPhoneNumber(latest.address)
     return Conversation(
         threadId = stableBlockedThreadId(latest.conversationKey()),
-        snippet = latest.blockReason.label(this),
+        snippet = latest.body,
         date = latest.dateMillis.toConversationDate(),
         read = unreadCount == 0,
         title = namePhoto.name.ifBlank { latest.address },
@@ -569,7 +569,9 @@ private fun Context.toBlockedConversation(entries: List<BlockedMessageEntry>): C
         isGroupConversation = false,
         phoneNumber = latest.address,
         unreadCount = unreadCount,
-    )
+    ).also { conversation ->
+        conversation.blockReason = latest.blockReason
+    }
 }
 
 private fun Context.messageFromBlockedEntry(entry: BlockedMessageEntry, threadId: Long): Message {

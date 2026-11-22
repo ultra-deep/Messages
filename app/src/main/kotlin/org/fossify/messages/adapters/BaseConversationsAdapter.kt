@@ -573,6 +573,16 @@ abstract class BaseConversationsAdapter(
                 it.setTextColor(contentColor)
             }
 
+            val reason = conversation.blockReason
+            conversationBlockReason.apply {
+                beVisibleIf(reason != null)
+                text = reason?.listMarker().orEmpty()
+                contentDescription = reason?.label(context)
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, fontSize * 0.8f)
+                setTypeface(customTypeface, Typeface.BOLD)
+                setTextColor(properPrimaryColor)
+            }
+
             setupBadgeCount(unreadCountBadge, isUnread, conversation.unreadCount)
             // at group conversations we use an icon as the placeholder, not any letter
             val placeholder = if (conversation.isGroupConversation) {

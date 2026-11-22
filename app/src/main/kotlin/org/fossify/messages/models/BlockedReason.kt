@@ -15,6 +15,13 @@ enum class BlockedReason(val value: Int) {
         }
     }
 
+    fun listMarker(): String {
+        return when (this) {
+            KEYWORD -> "#W"
+            NUMBER, UNSPECIFIED -> "#N"
+        }
+    }
+
     companion object {
         fun fromValue(value: Int): BlockedReason {
             return entries.firstOrNull { it.value == value } ?: UNSPECIFIED
