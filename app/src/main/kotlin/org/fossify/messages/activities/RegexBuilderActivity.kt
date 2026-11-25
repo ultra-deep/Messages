@@ -14,6 +14,7 @@ import android.widget.Spinner
 import android.widget.TextView
 import org.fossify.commons.extensions.applyColorFilter
 import org.fossify.commons.extensions.beVisibleIf
+import org.fossify.commons.extensions.getProperBackgroundColor
 import org.fossify.commons.extensions.getProperPrimaryColor
 import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.showKeyboard
@@ -38,7 +39,6 @@ import org.fossify.messages.helpers.regexOrNull
 class RegexBuilderActivity : SimpleActivity() {
     private val binding by viewBinding(ActivityRegexBuilderBinding::inflate)
     private val pieces = ArrayList<RegexPiece>()
-    private var defaultSampleStroke: ColorStateList? = null
     private val rows by lazy {
         RegexBuilderRows(this, binding, pieces) { refreshPreview() }
     }
@@ -46,7 +46,6 @@ class RegexBuilderActivity : SimpleActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        defaultSampleStroke = binding.regexSampleLayout.boxStrokeColorStateList
         val restored = savedInstanceState?.readRegexPieces().orEmpty()
         pieces.addAll(restored.ifEmpty { listOf(RegexPiece()) })
 
@@ -100,8 +99,7 @@ class RegexBuilderActivity : SimpleActivity() {
         val showResult = pattern.isNotEmpty() && sample.isNotEmpty()
         binding.regexTryResult.beVisibleIf(showResult)
         if (!showResult) {
-            binding.regexSampleInput.setTextColor(getProperTextColor())
-            defaultSampleStroke?.let { binding.regexSampleLayout.setBoxStrokeColorStateList(it) }
+            tintSampleField(getProperTextColor(), getProperPrimaryColor())
             return
         }
         val matched = matchesAnyRegexForm(pattern, sample)
@@ -113,11 +111,16 @@ class RegexBuilderActivity : SimpleActivity() {
             },
         )
         binding.regexTryResult.setTextColor(color)
-        binding.regexSampleInput.setTextColor(color)
-        binding.regexSampleLayout.setBoxStrokeColorStateList(ColorStateList.valueOf(color))
+        tintSampleField(color, color)
         binding.regexTryResult.text = getString(
             if (matched) R.string.regex_matches else R.string.regex_no_match,
         )
+    }
+
+    private fun tintSampleField(textColor: Int, accentColor: Int) {
+        binding.regexSampleLayout.setColors(textColor, accentColor, getProperBackgroundColor())
+        binding.regexSampleInput.setTextColor(textColor)
+        binding.regexSampleLayout.setBoxStrokeColorStateList(ColorStateList.valueOf(accentColor))
     }
 
     private fun usePattern() {
