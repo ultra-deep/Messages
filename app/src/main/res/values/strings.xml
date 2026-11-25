@@ -223,9 +223,10 @@
     <string name="no_option_selected">You have to select at least one item</string>
     <string name="export_blocked_keywords">Export blocked keywords</string>
     <string name="import_blocked_keywords">Import blocked keywords</string>
-    <string name="export_app_data">Export settings and groups</string>
-    <string name="import_app_data">Import settings and groups</string>
-    <string name="settings_backup_filename" translatable="false">settings</string>
+    <string name="export_app_data">Share settings and groups</string>
+    <string name="import_app_data">Import from clipboard</string>
+    <string name="clipboard_empty">Clipboard is empty</string>
+    <string name="invalid_settings_backup">Clipboard does not contain a settings backup</string>
     <string name="import_app_data_description">Choose what to import. Groups with the same name are updated. Blocked numbers, keywords, archived numbers, and pins are added to what you already have. Colors and settings replace the current values.</string>
     <string name="import_section_groups">Groups</string>
     <string name="import_section_groups_details">Backgrounds, notifications, number patterns, message patterns, and assigned numbers</string>

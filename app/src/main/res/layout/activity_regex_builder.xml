@@ -36,6 +36,39 @@
             android:orientation="vertical"
             android:paddingBottom="@dimen/activity_margin">
 
+            <TextView
+                android:id="@+id/regex_try_label"
+                style="@style/SettingsSectionLabelStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/regex_try" />
+
+            <org.fossify.commons.views.MyTextInputLayout
+                android:id="@+id/regex_sample_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/activity_margin"
+                android:layout_marginEnd="@dimen/activity_margin"
+                android:hint="@string/regex_sample_hint">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/regex_sample_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine|textNoSuggestions" />
+
+            </org.fossify.commons.views.MyTextInputLayout>
+
+            <org.fossify.commons.views.MyTextView
+                android:id="@+id/regex_try_result"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/activity_margin"
+                android:layout_marginTop="@dimen/small_margin"
+                android:layout_marginEnd="@dimen/activity_margin"
+                android:textSize="@dimen/normal_text_size"
+                android:visibility="gone" />
+
             <org.fossify.commons.views.MyTextView
                 android:id="@+id/regex_builder_hint"
                 android:layout_width="match_parent"
@@ -132,39 +165,6 @@
                 android:textIsSelectable="true"
                 android:typeface="monospace"
                 android:textSize="@dimen/normal_text_size" />
-
-            <TextView
-                android:id="@+id/regex_try_label"
-                style="@style/SettingsSectionLabelStyle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/regex_try" />
-
-            <org.fossify.commons.views.MyTextInputLayout
-                android:id="@+id/regex_sample_layout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/activity_margin"
-                android:layout_marginEnd="@dimen/activity_margin"
-                android:hint="@string/regex_sample_hint">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/regex_sample_input"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textMultiLine|textNoSuggestions" />
-
-            </org.fossify.commons.views.MyTextInputLayout>
-
-            <org.fossify.commons.views.MyTextView
-                android:id="@+id/regex_try_result"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/activity_margin"
-                android:layout_marginTop="@dimen/small_margin"
-                android:layout_marginEnd="@dimen/activity_margin"
-                android:textSize="@dimen/normal_text_size"
-                android:visibility="gone" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

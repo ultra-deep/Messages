@@ -1,6 +1,7 @@
 package org.fossify.messages.activities
 
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -37,6 +38,7 @@ import org.fossify.messages.helpers.regexOrNull
 class RegexBuilderActivity : SimpleActivity() {
     private val binding by viewBinding(ActivityRegexBuilderBinding::inflate)
     private val pieces = ArrayList<RegexPiece>()
+    private var defaultSampleStroke: ColorStateList? = null
     private val rows by lazy {
         RegexBuilderRows(this, binding, pieces) { refreshPreview() }
     }
@@ -44,6 +46,7 @@ class RegexBuilderActivity : SimpleActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        defaultSampleStroke = binding.regexSampleLayout.boxStrokeColorStateList
         val restored = savedInstanceState?.readRegexPieces().orEmpty()
         pieces.addAll(restored.ifEmpty { listOf(RegexPiece()) })
 
@@ -97,12 +100,21 @@ class RegexBuilderActivity : SimpleActivity() {
         val showResult = pattern.isNotEmpty() && sample.isNotEmpty()
         binding.regexTryResult.beVisibleIf(showResult)
         if (!showResult) {
+            binding.regexSampleInput.setTextColor(getProperTextColor())
+            defaultSampleStroke?.let { binding.regexSampleLayout.setBoxStrokeColorStateList(it) }
             return
         }
         val matched = matchesAnyRegexForm(pattern, sample)
-        binding.regexTryResult.setTextColor(
-            if (matched) getProperPrimaryColor() else getProperTextColor(),
+        val color = getColor(
+            if (matched) {
+                org.fossify.commons.R.color.md_green_500
+            } else {
+                org.fossify.commons.R.color.md_red_500
+            },
         )
+        binding.regexTryResult.setTextColor(color)
+        binding.regexSampleInput.setTextColor(color)
+        binding.regexSampleLayout.setBoxStrokeColorStateList(ColorStateList.valueOf(color))
         binding.regexTryResult.text = getString(
             if (matched) R.string.regex_matches else R.string.regex_no_match,
         )

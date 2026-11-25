@@ -2,10 +2,7 @@ package org.fossify.messages.helpers
 
 import android.content.Context
 import android.telephony.PhoneNumberUtils
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
-import kotlinx.serialization.json.encodeToStream
 import org.fossify.commons.extensions.addBlockedNumber
 import org.fossify.commons.extensions.getBlockedNumbers
 import org.fossify.messages.extensions.config
@@ -19,8 +16,6 @@ import org.fossify.messages.models.ConversationGroup
 import org.fossify.messages.models.ExportedGroup
 import org.fossify.messages.models.ExportedSettings
 import org.fossify.messages.models.ExportedTheme
-import java.io.InputStream
-import java.io.OutputStream
 
 data class ImportableSection(
     val section: AppDataSection,
@@ -98,14 +93,12 @@ object AppDataTransfer {
         AppDataImporter.apply(context, backup, sections)
     }
 
-    @OptIn(ExperimentalSerializationApi::class)
-    fun read(input: InputStream): AppDataBackup {
-        return json.decodeFromStream(input)
+    fun toText(backup: AppDataBackup): String {
+        return json.encodeToString(AppDataBackup.serializer(), backup)
     }
 
-    @OptIn(ExperimentalSerializationApi::class)
-    fun write(backup: AppDataBackup, output: OutputStream) {
-        json.encodeToStream(backup, output)
+    fun read(text: String): AppDataBackup {
+        return json.decodeFromString(AppDataBackup.serializer(), text)
     }
 
     private fun collectGroups(context: Context, conversations: List<Conversation>): List<ExportedGroup> {

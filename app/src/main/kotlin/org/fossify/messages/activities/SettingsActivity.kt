@@ -1,8 +1,8 @@
 package org.fossify.messages.activities
 
+import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageView
@@ -20,6 +20,7 @@ import org.fossify.commons.extensions.formatWithDeprecatedBadge
 import org.fossify.commons.extensions.getBlockedNumbers
 import org.fossify.commons.extensions.getFontSizeText
 import org.fossify.commons.extensions.getProperPrimaryColor
+import org.fossify.commons.extensions.shareTextIntent
 import org.fossify.commons.extensions.showErrorToast
 import org.fossify.commons.extensions.toast
 import org.fossify.commons.extensions.updateTextColors
@@ -39,7 +40,6 @@ import org.fossify.commons.views.MyTextView
 import org.fossify.messages.R
 import org.fossify.messages.databinding.ActivitySettingsBinding
 import org.fossify.messages.dialogs.ChangeDateTimeFormatDialog
-import org.fossify.messages.dialogs.ExportAppDataDialog
 import org.fossify.messages.dialogs.ExportMessagesDialog
 import org.fossify.messages.dialogs.ImportAppDataDialog
 import org.fossify.messages.extensions.config
@@ -97,23 +97,6 @@ class SettingsActivity : SimpleActivity() {
             if (uri != null) {
                 toast(org.fossify.commons.R.string.exporting)
                 exportMessagesDialog?.exportMessages(uri)
-            }
-        }
-
-    private var exportAppDataDialog: ExportAppDataDialog? = null
-
-    private val saveAppData =
-        registerForActivityResult(ActivityResultContracts.CreateDocument(messagesFileType)) { uri ->
-            if (uri != null) {
-                toast(org.fossify.commons.R.string.exporting)
-                exportAppDataDialog?.export(uri)
-            }
-        }
-
-    private val openAppData =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) {
-                readAppData(uri)
             }
         }
 
@@ -204,34 +187,46 @@ class SettingsActivity : SimpleActivity() {
 
     private fun setupAppDataExport() {
         binding.settingsExportAppDataHolder.setOnClickListener {
-            exportAppDataDialog = ExportAppDataDialog(this) { fileName ->
-                saveAppData.launch("$fileName.json")
+            ensureBackgroundThread {
+                try {
+                    val text = AppDataTransfer.toText(AppDataTransfer.collect(this))
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) {
+                            return@runOnUiThread
+                        }
+                        shareTextIntent(text)
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread { showErrorToast(e) }
+                }
             }
         }
     }
 
     private fun setupAppDataImport() {
         binding.settingsImportAppDataHolder.setOnClickListener {
-            openAppData.launch(
-                arrayOf(
-                    "application/json",
-                    "text/plain",
-                    "application/octet-stream",
-                )
-            )
+            val text = clipboardText()
+            if (text.isEmpty()) {
+                toast(R.string.clipboard_empty)
+                return@setOnClickListener
+            }
+            readAppData(text)
         }
     }
 
-    private fun readAppData(uri: Uri) {
+    private fun clipboardText(): String {
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = clipboard.primaryClip ?: return ""
+        if (clip.itemCount == 0) {
+            return ""
+        }
+        return clip.getItemAt(0).coerceToText(this).toString().trim()
+    }
+
+    private fun readAppData(text: String) {
         ensureBackgroundThread {
             try {
-                val backup = contentResolver.openInputStream(uri)?.buffered()?.use { input ->
-                    AppDataTransfer.read(input)
-                }
-                if (backup == null) {
-                    runOnUiThread { toast(org.fossify.commons.R.string.invalid_file_format) }
-                    return@ensureBackgroundThread
-                }
+                val backup = AppDataTransfer.read(text)
                 val sections = AppDataTransfer.availableSections(backup)
                 runOnUiThread {
                     if (isFinishing || isDestroyed) {
@@ -246,9 +241,9 @@ class SettingsActivity : SimpleActivity() {
                     }
                 }
             } catch (_: SerializationException) {
-                runOnUiThread { toast(org.fossify.commons.R.string.invalid_file_format) }
+                runOnUiThread { toast(R.string.invalid_settings_backup) }
             } catch (_: IllegalArgumentException) {
-                runOnUiThread { toast(org.fossify.commons.R.string.invalid_file_format) }
+                runOnUiThread { toast(R.string.invalid_settings_backup) }
             } catch (e: Exception) {
                 runOnUiThread { showErrorToast(e) }
             }
