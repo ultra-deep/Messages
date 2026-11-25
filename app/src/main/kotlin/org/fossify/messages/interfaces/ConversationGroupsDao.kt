@@ -32,6 +32,9 @@ interface ConversationGroupsDao {
         messagePatterns: String,
     )
 
+    @Query("UPDATE conversation_groups SET position = :position WHERE id = :id")
+    fun updatePosition(id: Long, position: Int)
+
     @Query("DELETE FROM conversation_groups WHERE id = :id")
     fun delete(id: Long)
 

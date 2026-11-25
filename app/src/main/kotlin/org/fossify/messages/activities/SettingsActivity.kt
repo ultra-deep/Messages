@@ -2,10 +2,12 @@ package org.fossify.messages.activities
 
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageView
 import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.serialization.SerializationException
 import org.fossify.commons.activities.ManageBlockedNumbersActivity
 import org.fossify.commons.dialogs.ColorPickerDialog
 import org.fossify.commons.dialogs.ConfirmationDialog
@@ -18,6 +20,7 @@ import org.fossify.commons.extensions.formatWithDeprecatedBadge
 import org.fossify.commons.extensions.getBlockedNumbers
 import org.fossify.commons.extensions.getFontSizeText
 import org.fossify.commons.extensions.getProperPrimaryColor
+import org.fossify.commons.extensions.showErrorToast
 import org.fossify.commons.extensions.toast
 import org.fossify.commons.extensions.updateTextColors
 import org.fossify.commons.extensions.viewBinding
@@ -36,7 +39,9 @@ import org.fossify.commons.views.MyTextView
 import org.fossify.messages.R
 import org.fossify.messages.databinding.ActivitySettingsBinding
 import org.fossify.messages.dialogs.ChangeDateTimeFormatDialog
+import org.fossify.messages.dialogs.ExportAppDataDialog
 import org.fossify.messages.dialogs.ExportMessagesDialog
+import org.fossify.messages.dialogs.ImportAppDataDialog
 import org.fossify.messages.extensions.config
 import org.fossify.messages.extensions.showBackgroundColorPreview
 import org.fossify.messages.extensions.toBackgroundColorLabel
@@ -45,6 +50,7 @@ import org.fossify.messages.extensions.getUnreadBlockedMessageCount
 import org.fossify.messages.extensions.invalidateBlockedConversationCache
 import org.fossify.messages.extensions.messagesDB
 import org.fossify.messages.extensions.unreadBlockedBadgeText
+import org.fossify.messages.helpers.AppDataTransfer
 import org.fossify.messages.helpers.FILE_SIZE_100_KB
 import org.fossify.messages.helpers.SHOW_BLOCKED_TAB
 import org.fossify.messages.helpers.FILE_SIZE_1_MB
@@ -59,6 +65,8 @@ import org.fossify.messages.helpers.LOCK_SCREEN_SENDER_MESSAGE
 import org.fossify.messages.helpers.MessagesImporter
 import org.fossify.messages.helpers.refreshBlockedMessages
 import org.fossify.messages.helpers.refreshConversations
+import org.fossify.messages.models.AppDataBackup
+import org.fossify.messages.models.AppDataSection
 import java.util.Locale
 import kotlin.system.exitProcess
 
@@ -89,6 +97,23 @@ class SettingsActivity : SimpleActivity() {
             if (uri != null) {
                 toast(org.fossify.commons.R.string.exporting)
                 exportMessagesDialog?.exportMessages(uri)
+            }
+        }
+
+    private var exportAppDataDialog: ExportAppDataDialog? = null
+
+    private val saveAppData =
+        registerForActivityResult(ActivityResultContracts.CreateDocument(messagesFileType)) { uri ->
+            if (uri != null) {
+                toast(org.fossify.commons.R.string.exporting)
+                exportAppDataDialog?.export(uri)
+            }
+        }
+
+    private val openAppData =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                readAppData(uri)
             }
         }
 
@@ -137,6 +162,8 @@ class SettingsActivity : SimpleActivity() {
         setupAppPasswordProtection()
         setupMessagesExport()
         setupMessagesImport()
+        setupAppDataExport()
+        setupAppDataImport()
         updateTextColors(binding.settingsNestedScrollview)
 
         if (
@@ -172,6 +199,87 @@ class SettingsActivity : SimpleActivity() {
     private fun setupMessagesImport() {
         binding.settingsImportMessagesHolder.setOnClickListener {
             getContent.launch(messageImportFileTypes.toTypedArray())
+        }
+    }
+
+    private fun setupAppDataExport() {
+        binding.settingsExportAppDataHolder.setOnClickListener {
+            exportAppDataDialog = ExportAppDataDialog(this) { fileName ->
+                saveAppData.launch("$fileName.json")
+            }
+        }
+    }
+
+    private fun setupAppDataImport() {
+        binding.settingsImportAppDataHolder.setOnClickListener {
+            openAppData.launch(
+                arrayOf(
+                    "application/json",
+                    "text/plain",
+                    "application/octet-stream",
+                )
+            )
+        }
+    }
+
+    private fun readAppData(uri: Uri) {
+        ensureBackgroundThread {
+            try {
+                val backup = contentResolver.openInputStream(uri)?.buffered()?.use { input ->
+                    AppDataTransfer.read(input)
+                }
+                if (backup == null) {
+                    runOnUiThread { toast(org.fossify.commons.R.string.invalid_file_format) }
+                    return@ensureBackgroundThread
+                }
+                val sections = AppDataTransfer.availableSections(backup)
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) {
+                        return@runOnUiThread
+                    }
+                    if (sections.isEmpty()) {
+                        toast(R.string.nothing_to_import)
+                        return@runOnUiThread
+                    }
+                    ImportAppDataDialog(this, sections) { selected ->
+                        importSelected(backup, selected)
+                    }
+                }
+            } catch (_: SerializationException) {
+                runOnUiThread { toast(org.fossify.commons.R.string.invalid_file_format) }
+            } catch (_: IllegalArgumentException) {
+                runOnUiThread { toast(org.fossify.commons.R.string.invalid_file_format) }
+            } catch (e: Exception) {
+                runOnUiThread { showErrorToast(e) }
+            }
+        }
+    }
+
+    private fun importSelected(backup: AppDataBackup, selected: Set<AppDataSection>) {
+        toast(org.fossify.commons.R.string.importing)
+        ensureBackgroundThread {
+            try {
+                AppDataTransfer.apply(this, backup, selected)
+                val blockedChanged = AppDataSection.BLOCKED_NUMBERS in selected ||
+                    AppDataSection.BLOCKED_KEYWORDS in selected
+                if (blockedChanged) {
+                    invalidateBlockedConversationCache()
+                }
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) {
+                        return@runOnUiThread
+                    }
+                    if (AppDataSection.THEME_COLORS in selected) {
+                        updateRecentsAppIcon()
+                    }
+                    refreshConversations()
+                    refreshBlockedMessages()
+                    toast(org.fossify.commons.R.string.importing_successful)
+                    recreate()
+                }
+            } catch (e: Exception) {
+                runOnUiThread { showErrorToast(e) }
+            }
         }
     }
 
