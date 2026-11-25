@@ -9,6 +9,7 @@ import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.models.PhoneNumber
 import org.fossify.commons.models.SimpleContact
+import org.fossify.messages.extensions.assignConversationByMessagePattern
 import org.fossify.messages.extensions.getConversations
 import org.fossify.messages.extensions.getNameFromAddress
 import org.fossify.messages.extensions.getNotificationBitmap
@@ -112,6 +113,7 @@ class SmsReceiver : BroadcastReceiver() {
         } else {
             context.syncStoredUnreadCounts()
         }
+        context.assignConversationByMessagePattern(threadId, body)
 
         val senderName = context.getMyContactsCursor(favoritesOnly = false, withPhoneNumbersOnly = true).use {
             context.getNameFromAddress(address, it)

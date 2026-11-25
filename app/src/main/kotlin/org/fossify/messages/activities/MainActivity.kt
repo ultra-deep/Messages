@@ -1423,6 +1423,7 @@ class MainActivity : SimpleActivity() {
             initialNotificationSound = group.notificationSound,
             initialNotificationVibration = group.notificationVibration,
             initialNumberPatterns = group.numberPatterns,
+            initialMessagePatterns = group.messagePatterns,
             titleRes = R.string.rename_group,
             isNameTaken = { name ->
                 conversationGroups.any { it.id != group.id && it.name.equals(name, ignoreCase = true) }

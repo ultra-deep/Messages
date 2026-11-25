@@ -9,7 +9,9 @@ import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.commons.models.RadioItem
 import org.fossify.messages.R
 import org.fossify.messages.dialogs.GroupNameDialog
+import org.fossify.messages.helpers.matchingMessagePatternGroup
 import org.fossify.messages.helpers.matchingPatternGroup
+import org.fossify.messages.helpers.normalizeMessagePatterns
 import org.fossify.messages.helpers.normalizeNumberPatterns
 import org.fossify.messages.helpers.refreshConversations
 import org.fossify.messages.models.Conversation
@@ -45,6 +47,7 @@ fun Context.createConversationGroup(form: ConversationGroupForm): Long {
             notificationSound = form.notificationSound,
             notificationVibration = form.notificationVibration,
             numberPatterns = normalizeNumberPatterns(form.numberPatterns),
+            messagePatterns = normalizeMessagePatterns(form.messagePatterns),
         )
     )
 }
@@ -59,7 +62,28 @@ fun Context.renameConversationGroup(groupId: Long, form: ConversationGroupForm) 
         notificationSound = form.notificationSound,
         notificationVibration = form.notificationVibration,
         numberPatterns = normalizeNumberPatterns(form.numberPatterns),
+        messagePatterns = normalizeMessagePatterns(form.messagePatterns),
     )
+}
+
+/**
+ * Moves [threadId] into the group whose message pattern matches [body].
+ * Leaves the conversation where it is when nothing matches, or when it is already in that group.
+ * Archive state is left to the receiver.
+ */
+fun Context.assignConversationByMessagePattern(threadId: Long, body: String) {
+    if (threadId == 0L || body.isBlank()) {
+        return
+    }
+    try {
+        val group = matchingMessagePatternGroup(conversationGroupsDB.getAll(), body) ?: return
+        val existing = conversationsDB.getConversationWithThreadId(threadId) ?: return
+        if (existing.groupId == group.id) {
+            return
+        }
+        conversationsDB.assignMessagePatternGroup(threadId, group.id)
+    } catch (_: Exception) {
+    }
 }
 
 fun Context.groupMessageAlert(threadId: Long, address: String): GroupMessageAlert {

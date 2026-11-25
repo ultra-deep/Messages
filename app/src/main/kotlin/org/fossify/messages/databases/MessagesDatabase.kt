@@ -36,7 +36,7 @@ import org.fossify.messages.models.RecycleBinMessage
         BlockedMessage::class,
         ConversationGroup::class,
     ],
-    version = 18
+    version = 19
 )
 @TypeConverters(Converters::class)
 abstract class MessagesDatabase : RoomDatabase() {
@@ -85,6 +85,7 @@ abstract class MessagesDatabase : RoomDatabase() {
                             .addMigrations(MIGRATION_15_16)
                             .addMigrations(MIGRATION_16_17)
                             .addMigrations(MIGRATION_17_18)
+                            .addMigrations(MIGRATION_18_19)
                             .build()
                     }
                 }
@@ -270,6 +271,14 @@ abstract class MessagesDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE blocked_messages ADD COLUMN block_reason INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
+        private val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE conversation_groups ADD COLUMN message_patterns TEXT NOT NULL DEFAULT ''"
                 )
             }
         }

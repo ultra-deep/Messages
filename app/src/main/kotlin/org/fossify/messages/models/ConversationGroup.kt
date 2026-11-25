@@ -16,6 +16,7 @@ data class ConversationGroup(
     @ColumnInfo(name = "notification_sound") val notificationSound: Boolean = true,
     @ColumnInfo(name = "notification_vibration") val notificationVibration: Boolean = true,
     @ColumnInfo(name = "number_patterns") val numberPatterns: String = "",
+    @ColumnInfo(name = "message_patterns") val messagePatterns: String = "",
 )
 
 data class ConversationGroupForm(
@@ -26,4 +27,5 @@ data class ConversationGroupForm(
     val notificationSound: Boolean,
     val notificationVibration: Boolean,
     val numberPatterns: String,
+    val messagePatterns: String,
 )

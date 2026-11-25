@@ -111,7 +111,12 @@
     <string name="remove_number_pattern">Remove pattern</string>
     <string name="group_number_pattern_invalid">Enter a valid regular expression that contains at least one digit.</string>
     <string name="group_number_pattern_exists">This pattern is already in the list</string>
-    <string name="no_conversations_in_group">No conversations in this group. Move conversations here, or add a number pattern such as 989000.</string>
+    <string name="group_message_patterns">Message patterns</string>
+    <string name="group_message_patterns_hint">A pattern is a regular expression matched against the text of a received message. For example, OTP matches a message that contains OTP, and ^Your code matches a message that starts with it. When a message matches, its conversation moves into this group. If several groups match, the longer pattern wins.</string>
+    <string name="message_pattern">Message pattern</string>
+    <string name="add_message_pattern">Add message pattern</string>
+    <string name="group_message_pattern_invalid">Enter a valid regular expression.</string>
+    <string name="no_conversations_in_group">No conversations in this group. Move conversations here, add a number pattern such as 989000, or add a message pattern that matches incoming texts.</string>
     <!-- Recycle bin -->
     <string name="restore">Restore</string>
     <string name="restore_all_messages">Restore all messages</string>

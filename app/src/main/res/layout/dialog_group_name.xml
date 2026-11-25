@@ -235,5 +235,86 @@
             android:text="@string/build_a_pattern"
             android:textSize="@dimen/normal_text_size" />
 
+        <org.fossify.commons.views.MyTextView
+            android:id="@+id/group_message_patterns_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/big_margin"
+            android:layout_marginTop="@dimen/medium_margin"
+            android:layout_marginEnd="@dimen/big_margin"
+            android:text="@string/group_message_patterns"
+            android:textSize="@dimen/normal_text_size" />
+
+        <org.fossify.commons.views.MyTextView
+            android:id="@+id/group_message_patterns_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/big_margin"
+            android:layout_marginTop="@dimen/tiny_margin"
+            android:layout_marginEnd="@dimen/big_margin"
+            android:alpha="0.7"
+            android:text="@string/group_message_patterns_hint"
+            android:textSize="@dimen/smaller_text_size" />
+
+        <LinearLayout
+            android:id="@+id/group_message_pattern_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/big_margin"
+            android:layout_marginTop="@dimen/small_margin"
+            android:layout_marginEnd="@dimen/medium_margin"
+            android:orientation="vertical" />
+
+        <LinearLayout
+            android:id="@+id/group_message_pattern_add_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/big_margin"
+            android:layout_marginTop="@dimen/small_margin"
+            android:layout_marginEnd="@dimen/medium_margin"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <org.fossify.commons.views.MyTextInputLayout
+                android:id="@+id/group_message_pattern_input_layout"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/message_pattern">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/group_message_pattern_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:imeOptions="actionDone"
+                    android:inputType="text|textNoSuggestions"
+                    android:maxLength="400"
+                    android:maxLines="1" />
+
+            </org.fossify.commons.views.MyTextInputLayout>
+
+            <ImageView
+                android:id="@+id/group_message_pattern_add"
+                android:layout_width="@dimen/medium_icon_size"
+                android:layout_height="@dimen/medium_icon_size"
+                android:layout_marginStart="@dimen/small_margin"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/add_message_pattern"
+                android:padding="@dimen/small_margin"
+                android:src="@drawable/ic_plus_vector" />
+
+        </LinearLayout>
+
+        <org.fossify.commons.views.MyTextView
+            android:id="@+id/group_message_pattern_build"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/medium_margin"
+            android:layout_marginEnd="@dimen/medium_margin"
+            android:background="@drawable/ripple_all_corners"
+            android:padding="@dimen/medium_margin"
+            android:text="@string/build_a_pattern"
+            android:textSize="@dimen/normal_text_size" />
+
     </LinearLayout>
 </ScrollView>

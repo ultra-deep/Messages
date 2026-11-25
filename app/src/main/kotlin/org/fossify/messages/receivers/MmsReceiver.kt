@@ -9,6 +9,7 @@ import org.fossify.commons.extensions.showErrorToast
 import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.helpers.ensureBackgroundThread
 import org.fossify.messages.R
+import org.fossify.messages.extensions.assignConversationByMessagePattern
 import org.fossify.messages.extensions.conversationsDB
 import org.fossify.messages.extensions.deleteMessage
 import org.fossify.messages.extensions.deleteThreadIfNoProviderMessages
@@ -111,6 +112,14 @@ class MmsReceiver : MmsReceivedReceiver() {
         }
 
         context.messagesDB.insertOrUpdate(mms)
+
+        val conversation = context.getConversations(mms.threadId).firstOrNull()
+        if (conversation != null) {
+            runCatching { context.insertOrUpdateConversation(conversation) }
+        } else {
+            context.syncStoredUnreadCounts()
+        }
+        context.assignConversationByMessagePattern(mms.threadId, mms.body)
         context.showReceivedMessageNotification(
             messageId = mms.id,
             isMms = true,
@@ -120,13 +129,6 @@ class MmsReceiver : MmsReceivedReceiver() {
             threadId = mms.threadId,
             bitmap = glideBitmap
         )
-
-        val conversation = context.getConversations(mms.threadId).firstOrNull()
-        if (conversation != null) {
-            runCatching { context.insertOrUpdateConversation(conversation) }
-        } else {
-            context.syncStoredUnreadCounts()
-        }
         if (context.shouldUnarchive()) {
             context.updateConversationArchivedStatus(mms.threadId, false)
         }

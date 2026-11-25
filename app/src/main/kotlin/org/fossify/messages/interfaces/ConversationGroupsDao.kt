@@ -17,8 +17,8 @@ interface ConversationGroupsDao {
         "UPDATE conversation_groups SET name = :name, background_color = :backgroundColor, " +
             "background_color_dark = :darkBackgroundColor, " +
             "show_notification = :showNotification, notification_sound = :notificationSound, " +
-            "notification_vibration = :notificationVibration, number_patterns = :numberPatterns " +
-            "WHERE id = :id"
+            "notification_vibration = :notificationVibration, number_patterns = :numberPatterns, " +
+            "message_patterns = :messagePatterns WHERE id = :id"
     )
     fun update(
         id: Long,
@@ -29,6 +29,7 @@ interface ConversationGroupsDao {
         notificationSound: Boolean,
         notificationVibration: Boolean,
         numberPatterns: String,
+        messagePatterns: String,
     )
 
     @Query("DELETE FROM conversation_groups WHERE id = :id")

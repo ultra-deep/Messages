@@ -83,6 +83,12 @@ interface ConversationsDao {
     )
     fun moveToGroup(threadId: Long, groupId: Long)
 
+    @Query(
+        "UPDATE conversations SET group_id = :groupId, ignore_number_pattern = 0 " +
+            "WHERE thread_id = :threadId"
+    )
+    fun assignMessagePatternGroup(threadId: Long, groupId: Long)
+
     @Query("UPDATE conversations SET group_id = 0, ignore_number_pattern = 1 WHERE thread_id = :threadId")
     fun removeFromGroupAndIgnorePattern(threadId: Long)
 

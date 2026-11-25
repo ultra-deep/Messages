@@ -26,7 +26,9 @@ import org.fossify.messages.databinding.DialogGroupNameBinding
 import org.fossify.messages.databinding.ItemGroupNumberPatternBinding
 import org.fossify.messages.extensions.showBackgroundColorPreview
 import org.fossify.messages.extensions.toBackgroundColorLabel
+import org.fossify.messages.helpers.isUsableMessagePattern
 import org.fossify.messages.helpers.isUsableNumberPattern
+import org.fossify.messages.helpers.messagePatternsOf
 import org.fossify.messages.helpers.numberPatternsOf
 import org.fossify.messages.models.ConversationGroupForm
 
@@ -39,12 +41,14 @@ class GroupNameDialog(
     private val initialNotificationSound: Boolean = true,
     private val initialNotificationVibration: Boolean = true,
     private val initialNumberPatterns: String = "",
+    private val initialMessagePatterns: String = "",
     @StringRes private val titleRes: Int,
     private val isNameTaken: (String) -> Boolean = { false },
     private val callback: (ConversationGroupForm) -> Unit,
 ) {
     private var dialog: AlertDialog? = null
     private val patterns = numberPatternsOf(initialNumberPatterns).distinct().toMutableList()
+    private val messagePatterns = messagePatternsOf(initialMessagePatterns).distinct().toMutableList()
 
     init {
         var selectedLightColor = initialBackgroundColor
@@ -111,7 +115,18 @@ class GroupNameDialog(
                 false
             }
         }
+        binding.groupMessagePatternAdd.applyColorFilter(textColor)
+        binding.groupMessagePatternAdd.setOnClickListener { addMessagePattern(binding) }
+        binding.groupMessagePatternInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                addMessagePattern(binding)
+                true
+            } else {
+                false
+            }
+        }
         renderPatterns(binding, textColor)
+        renderMessagePatterns(binding, textColor)
         fun showNotificationOptions() {
             binding.groupNotificationOptions.beVisibleIf(
                 binding.groupShowNotificationCheckbox.isChecked
@@ -128,6 +143,7 @@ class GroupNameDialog(
             .apply {
                 activity.setupDialogStuff(binding.root, this, titleRes) { alertDialog ->
                     wirePatternBuilder(binding)
+                    wireMessagePatternBuilder(binding)
                     dialog = alertDialog
                     if (initialName.isEmpty()) {
                         alertDialog.showKeyboard(binding.groupNameEditText)
@@ -158,7 +174,7 @@ class GroupNameDialog(
             activity.toast(R.string.group_name_exists)
             return
         }
-        if (!addPattern(binding)) {
+        if (!addPattern(binding) || !addMessagePattern(binding)) {
             return
         }
         callback(
@@ -170,6 +186,7 @@ class GroupNameDialog(
                 notificationSound = binding.groupNotificationSoundCheckbox.isChecked,
                 notificationVibration = binding.groupNotificationVibrationCheckbox.isChecked,
                 numberPatterns = patterns.joinToString("\n"),
+                messagePatterns = messagePatterns.joinToString("\n"),
             )
         )
         alertDialog.dismiss()
@@ -186,6 +203,21 @@ class GroupNameDialog(
         binding.groupNumberPatternBuild.setOnClickListener {
             host.launchRegexBuilder { pattern ->
                 binding.groupNumberPatternInput.setText(pattern)
+            }
+        }
+    }
+
+    private fun wireMessagePatternBuilder(binding: DialogGroupNameBinding) {
+        val host = activity as? SimpleActivity
+        binding.groupMessagePatternBuild.beVisibleIf(host != null)
+        if (host == null) {
+            return
+        }
+        binding.groupMessagePatternBuild.underlineText()
+        binding.groupMessagePatternBuild.setTextColor(activity.getProperPrimaryColor())
+        binding.groupMessagePatternBuild.setOnClickListener {
+            host.launchRegexBuilder { pattern ->
+                binding.groupMessagePatternInput.setText(pattern)
             }
         }
     }
@@ -221,6 +253,40 @@ class GroupNameDialog(
         patterns.add(pattern)
         binding.groupNumberPatternInput.text?.clear()
         renderPatterns(binding, activity.getProperTextColor())
+        return true
+    }
+
+    private fun renderMessagePatterns(binding: DialogGroupNameBinding, textColor: Int) {
+        val list = binding.groupMessagePatternList
+        list.removeAllViews()
+        messagePatterns.forEach { pattern ->
+            val row = ItemGroupNumberPatternBinding.inflate(activity.layoutInflater, list, false)
+            row.groupNumberPatternValue.text = pattern
+            row.groupNumberPatternRemove.applyColorFilter(textColor)
+            row.groupNumberPatternRemove.setOnClickListener {
+                messagePatterns.remove(pattern)
+                renderMessagePatterns(binding, textColor)
+            }
+            list.addView(row.root)
+        }
+    }
+
+    private fun addMessagePattern(binding: DialogGroupNameBinding): Boolean {
+        val pattern = binding.groupMessagePatternInput.text?.toString().orEmpty().trim()
+        if (pattern.isEmpty()) {
+            return true
+        }
+        if (!isUsableMessagePattern(pattern)) {
+            activity.toast(R.string.group_message_pattern_invalid)
+            return false
+        }
+        if (messagePatterns.any { it.equals(pattern, ignoreCase = true) }) {
+            activity.toast(R.string.group_number_pattern_exists)
+            return false
+        }
+        messagePatterns.add(pattern)
+        binding.groupMessagePatternInput.text?.clear()
+        renderMessagePatterns(binding, activity.getProperTextColor())
         return true
     }
 }
